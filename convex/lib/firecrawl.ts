@@ -1,0 +1,11 @@
+export type ResourceCandidate = { title: string; provider: string; description: string; sourceUrl: string; claimUrl?: string; sourceType: string; category: string; resourceType: string; value?: string; eligibility: string[]; requirements: string[]; regions: string[]; requiresCard: boolean; requiresApplication: boolean; evidence?: string }
+
+const endpoint = 'https://api.firecrawl.dev/v2'
+function apiKey() { const key = process.env.FIRECRAWL_API_KEY; if (!key) throw new Error('FIRECRAWL_API_KEY is not configured'); return key }
+async function firecrawl(path: string, body: unknown) { const response = await fetch(`${endpoint}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${apiKey()}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); if (!response.ok) throw new Error(`Firecrawl request failed with ${response.status}`); return response.json() as Promise<any> }
+
+export async function searchForResources(query: string) { return firecrawl('/search', { query, limit: 10, sources: ['web'], scrapeOptions: { formats: [{ type: 'markdown' }] } }) }
+export async function extractResource(sourceUrl: string): Promise<ResourceCandidate> { const data = await firecrawl('/scrape', { url: sourceUrl, formats: ['markdown'], onlyMainContent: true, removeBase64Images: true }); const page = data?.data ?? data; return { title: page?.metadata?.title ?? 'Untitled resource', provider: page?.metadata?.title?.split(' ')[0] ?? 'Unknown provider', description: page?.markdown?.slice(0, 420) ?? '', sourceUrl, sourceType: 'Community', category: 'Other', resourceType: 'Free tier', eligibility: ['Everyone'], requirements: [], regions: ['Worldwide'], requiresCard: false, requiresApplication: false, evidence: page?.markdown?.slice(0, 1200) }
+}
+export async function revalidateResource(sourceUrl: string) { const data = await firecrawl('/scrape', { url: sourceUrl, formats: ['markdown'], onlyMainContent: true, removeBase64Images: true }); return { offerDetected: Boolean(data?.data?.markdown), finalUrl: data?.data?.metadata?.url ?? sourceUrl, evidence: data?.data?.markdown?.slice(0, 800) ?? '' } }
+export async function resolveSource(sourceUrl: string) { return revalidateResource(sourceUrl) }
