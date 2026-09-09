@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "vite dev --port 3000",
     "generate-routes": "tsr generate",
+    "test": "vitest run --config vitest.config.ts",
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "pnpm run build && wrangler deploy"
@@ -30,6 +31,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
+    "vitest": "^5.0.0",
     "wrangler": "^4.70.0"
   },
   "pnpm": {

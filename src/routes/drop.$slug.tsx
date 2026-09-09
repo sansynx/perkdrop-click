@@ -1,15 +1,167 @@
-import { useState } from 'react'
-import { Link, createFileRoute, useParams } from '@tanstack/react-router'
-import { ArrowLeft, ArrowUpRight, Check, Clock, Globe, Sparkle, WarningCircle } from '@phosphor-icons/react'
-import { getDrop } from '../lib/demo-data'
+import { useState } from "react";
+import { Link, createFileRoute, useParams } from "@tanstack/react-router";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Check,
+  Clock,
+  Globe,
+  WarningCircle,
+} from "@phosphor-icons/react";
+import { getDrop } from "../lib/demo-data";
 
-export const Route = createFileRoute('/drop/$slug')({ component: DropDetail })
+export const Route = createFileRoute("/drop/$slug")({ component: DropDetail });
 
 function DropDetail() {
-  const { slug } = useParams({ from: '/drop/$slug' })
-  const drop = getDrop(slug)
-  const [claimed, setClaimed] = useState(false)
-  const [reaction, setReaction] = useState<string | null>(null)
-  if (!drop) return <main className="detail-page container"><Link to="/" className="back-link"><ArrowLeft size={16} /> Back to discover</Link><div className="detail-empty"><WarningCircle size={30} /><h1>Couldn't load this drop.</h1><p>Try returning to the feed and choosing another resource.</p><Link to="/" className="primary-button">Back to discover</Link></div></main>
-  return <div className="app-shell"><header className="site-header"><div className="header-inner"><Link to="/" className="brand"><span className="brand-mark"><Sparkle size={16} weight="fill" /></span><span>Perkdrop</span><span className="brand-domain">.click</span></Link><Link to="/" className="back-link"><ArrowLeft size={16} /> Discover</Link></div></header><main className="detail-page container"><div className="detail-layout"><div><Link to="/" className="back-link mobile-back"><ArrowLeft size={16} /> Back to discover</Link><div className="detail-provider"><span className="provider-mark detail-mark">{drop.providerMark}</span><span>{drop.provider}</span></div><h1>{drop.title}</h1><p className="detail-lede">{drop.description}</p><div className="detail-stat-row"><span><strong>{drop.value}</strong> value</span><span><Globe size={16} />{drop.region}</span><span><Check size={16} />{drop.eligibility}</span></div><a className="primary-button claim-large" href="https://example.com" target="_blank" rel="noreferrer" onClick={() => setClaimed(true)}>Claim offer <ArrowUpRight size={17} /></a>{claimed ? <div className="claim-notice"><Check size={16} weight="bold" /> Opened the original source in a new tab.</div> : null}<section className="detail-section"><h2>What you get</h2><p>{drop.value} toward {drop.provider} tools, with the offer details preserved from the original source.</p></section><section className="detail-section"><h2>Who can get it</h2><ul className="detail-list"><li><Check size={16} />{drop.eligibility}</li><li><Check size={16} />{drop.region}</li><li><Check size={16} />No referral required</li></ul></section><section className="detail-section"><h2>Community</h2><div className="community-summary"><div><strong>{drop.claimed}</strong><span>claimed this drop</span></div><div><strong>{drop.confirmed}</strong><span>recently confirmed</span></div><div><strong>5h ago</strong><span>last confirmed</span></div></div><div className="reaction-row">{['I claimed this', 'Works', "Doesn't work"].map((item) => <button key={item} className={reaction === item ? 'selected' : ''} onClick={() => setReaction(item)}>{reaction === item ? <Check size={15} /> : null}{item}</button>)}</div></section></div><aside className="source-panel"><span className="eyebrow">FOUND FROM</span><div className="source-line"><span className="source-avatar">{drop.sourceType[0]}</span><div><strong>{drop.source}</strong><span>{drop.sourceType}</span></div></div><a href="https://example.com" target="_blank" rel="noreferrer">View original source <ArrowUpRight size={15} /></a><div className="checked-note"><Clock size={15} />Last checked 3 hours ago</div></aside></div></main></div>
+  const { slug } = useParams({ from: "/drop/$slug" });
+  const drop = getDrop(slug);
+  const [claimed, setClaimed] = useState(false);
+  const [reaction, setReaction] = useState<string | null>(null);
+  if (!drop)
+    return (
+      <main className="detail-page container">
+        <Link to="/" className="back-link">
+          <ArrowLeft size={16} /> Back to discover
+        </Link>
+        <div className="detail-empty">
+          <WarningCircle size={30} />
+          <h1>Couldn't load this drop.</h1>
+          <p>Try returning to the feed and choosing another resource.</p>
+          <Link to="/" className="primary-button">
+            Back to discover
+          </Link>
+        </div>
+      </main>
+    );
+  return (
+    <div className="app-shell">
+      <header className="site-header">
+        <div className="header-inner">
+          <Link to="/" className="brand">
+            <span className="brand-mark" />
+            <span>Perkdrop</span>
+            <span className="brand-domain">.click</span>
+          </Link>
+          <Link to="/" className="back-link">
+            <ArrowLeft size={16} /> Discover
+          </Link>
+        </div>
+      </header>
+      <main className="detail-page container">
+        <div className="detail-layout">
+          <div>
+            <Link to="/" className="back-link mobile-back">
+              <ArrowLeft size={16} /> Back to discover
+            </Link>
+            <div className="detail-provider">
+              <span className="provider-mark detail-mark">
+                {drop.providerMark}
+              </span>
+              <span>{drop.provider}</span>
+            </div>
+            <h1>{drop.title}</h1>
+            <p className="detail-lede">{drop.description}</p>
+            <div className="detail-stat-row">
+              <span>
+                <strong>{drop.value}</strong> value
+              </span>
+              <span>
+                <Globe size={16} />
+                {drop.region}
+              </span>
+              <span>
+                <Check size={16} />
+                {drop.eligibility}
+              </span>
+            </div>
+            <a
+              className="primary-button claim-large"
+              href="https://example.com"
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => setClaimed(true)}
+            >
+              Claim offer <ArrowUpRight size={17} />
+            </a>
+            {claimed ? (
+              <div className="claim-notice">
+                <Check size={16} weight="bold" /> Opened the original source in
+                a new tab.
+              </div>
+            ) : null}
+            <section className="detail-section">
+              <h2>What you get</h2>
+              <p>
+                {drop.value} toward {drop.provider} tools, with the offer
+                details preserved from the original source.
+              </p>
+            </section>
+            <section className="detail-section">
+              <h2>Who can get it</h2>
+              <ul className="detail-list">
+                <li>
+                  <Check size={16} />
+                  {drop.eligibility}
+                </li>
+                <li>
+                  <Check size={16} />
+                  {drop.region}
+                </li>
+                <li>
+                  <Check size={16} />
+                  No referral required
+                </li>
+              </ul>
+            </section>
+            <section className="detail-section">
+              <h2>Community</h2>
+              <div className="community-summary">
+                <div>
+                  <strong>{drop.claimed}</strong>
+                  <span>claimed this drop</span>
+                </div>
+                <div>
+                  <strong>{drop.confirmed}</strong>
+                  <span>recently confirmed</span>
+                </div>
+                <div>
+                  <strong>5h ago</strong>
+                  <span>last confirmed</span>
+                </div>
+              </div>
+              <div className="reaction-row">
+                {["I claimed this", "Works", "Doesn't work"].map((item) => (
+                  <button
+                    key={item}
+                    className={reaction === item ? "selected" : ""}
+                    onClick={() => setReaction(item)}
+                  >
+                    {reaction === item ? <Check size={15} /> : null}
+                    {item}
+                  </button>
+                ))}
+              </div>
+            </section>
+          </div>
+          <aside className="source-panel">
+            <span className="eyebrow">FOUND FROM</span>
+            <div className="source-line">
+              <span className="source-avatar">{drop.sourceType[0]}</span>
+              <div>
+                <strong>{drop.source}</strong>
+                <span>{drop.sourceType}</span>
+              </div>
+            </div>
+            <a href="https://example.com" target="_blank" rel="noreferrer">
+              View original source <ArrowUpRight size={15} />
+            </a>
+            <div className="checked-note">
+              <Clock size={15} />
+              Last checked 3 hours ago
+            </div>
+          </aside>
+        </div>
+      </main>
+    </div>
+  );
 }
