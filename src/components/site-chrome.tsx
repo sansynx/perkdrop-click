@@ -87,7 +87,7 @@ export function SiteFooter() {
       </div>
       <div className="footer-bottom">
         <span>© 2026 Perkdrop.click</span>
-        <span>For the curious. For the builders.</span>
+        <Link to="/reviewer-demo">WebMCP supported in compatible browsers</Link>
       </div>
     </footer>
   );
