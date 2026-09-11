@@ -8,14 +8,18 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
+import type * as catalog from "../catalog.js";
 import type * as crons from "../crons.js";
 import type * as discovery from "../discovery.js";
+import type * as intake from "../intake.js";
 import type * as lib_firecrawl from "../lib/firecrawl.js";
+import type * as lib_intakePolicy from "../lib/intakePolicy.js";
 import type * as lifecycle from "../lifecycle.js";
 import type * as reactions from "../reactions.js";
-import type * as resources from "../resources.js";
 import type * as revalidation from "../revalidation.js";
 import type * as submissions from "../submissions.js";
+import type * as workflows from "../workflows.js";
 
 import type {
   ApiFromModules,
@@ -24,14 +28,18 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
+  catalog: typeof catalog;
   crons: typeof crons;
   discovery: typeof discovery;
+  intake: typeof intake;
   "lib/firecrawl": typeof lib_firecrawl;
+  "lib/intakePolicy": typeof lib_intakePolicy;
   lifecycle: typeof lifecycle;
   reactions: typeof reactions;
-  resources: typeof resources;
   revalidation: typeof revalidation;
   submissions: typeof submissions;
+  workflows: typeof workflows;
 }>;
 
 /**
@@ -60,4 +68,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  workflow: import("@convex-dev/workflow/_generated/component.js").ComponentApi<"workflow">;
+};

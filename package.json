@@ -7,17 +7,23 @@
   },
   "scripts": {
     "dev": "vite dev --port 3000",
+    "dev:full": "convex dev --start \"pnpm run dev\"",
     "generate-routes": "tsr generate",
     "test": "vitest run --config vitest.config.ts",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "pnpm run build && wrangler deploy"
+    "deploy": "pnpm run build && wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run format:check && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
+    "@convex-dev/workflow": "^0.4.6",
     "@fontsource-variable/geist": "^5.3.0",
     "@phosphor-icons/react": "^2.1.10",
-    "@tanstack/react-router": "latest",
-    "@tanstack/react-start": "latest",
+    "@tanstack/react-router": "1.170.33",
+    "@tanstack/react-start": "1.168.50",
     "convex": "^1.45.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
@@ -29,17 +35,15 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^6.0.1",
+    "convex-test": "^0.0.56",
     "typescript": "^6.0.2",
     "vite": "^8.0.0",
     "vitest": "^5.0.0",
-    "wrangler": "^4.70.0"
+    "wrangler": "^4.70.0",
+    "prettier": "3.9.6"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "lightningcss",
-      "sharp",
-      "workerd"
-    ]
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22.22.3"
   }
 }

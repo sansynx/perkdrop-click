@@ -1,16 +1,108 @@
-import { mutation, query } from './_generated/server'
-import { v } from 'convex/values'
-
-const reactionType = v.union(v.literal('claimed'), v.literal('works'), v.literal('expired'), v.literal('needs_card'), v.literal('region_issue'), v.literal('not_free'))
-
-export const add = mutation({ args: { resourceId: v.id('resources'), reactionType, anonymousId: v.string(), country: v.optional(v.string()) }, handler: async (ctx, args) => {
-  if (args.anonymousId.length < 16 || args.anonymousId.length > 128) throw new Error('Invalid visitor identifier')
-  const existing = await ctx.db.query('resourceReactions').withIndex('by_visitor_reaction', (index) => index.eq('resourceId', args.resourceId).eq('anonymousId', args.anonymousId).eq('reactionType', args.reactionType)).unique()
-  if (existing) return existing._id
-  return ctx.db.insert('resourceReactions', { ...args, createdAt: Date.now(), updatedAt: Date.now() })
-}})
-
-export const getSummary = query({ args: { resourceId: v.id('resources') }, handler: async (ctx, args) => {
-  const reactions = await ctx.db.query('resourceReactions').withIndex('by_resource', (index) => index.eq('resourceId', args.resourceId)).collect()
-  return reactions.reduce<Record<string, number>>((summary, reaction) => { summary[reaction.reactionType] = (summary[reaction.reactionType] ?? 0) + 1; return summary }, {})
-} })
+import { mutation, query } from "./_generated/server";
+import { ConvexError, v } from "convex/values";
+const reactionType = v.union(
+  v.literal("claimed"),
+  v.literal("works"),
+  v.literal("expired"),
+  v.literal("needs_card"),
+  v.literal("region_issue"),
+  v.literal("not_free"),
+);
+export const add = mutation({
+  args: {
+    resourceId: v.id("resources"),
+    reactionType,
+    anonymousId: v.string(),
+    country: v.optional(v.string()),
+  },
+  returns: v.id("resourceReactions"),
+  handler: async (ctx, args) => {
+    if (
+      !/^[a-zA-Z0-9-]{16,128}$/.test(args.anonymousId) ||
+      (args.country && !/^[A-Z]{2}$/.test(args.country))
+    )
+      throw new ConvexError("Invalid feedback details.");
+    const resource = await ctx.db.get(args.resourceId);
+    if (
+      !resource ||
+      resource.status !== "active" ||
+      (resource.expiresAt && resource.expiresAt <= Date.now())
+    )
+      throw new ConvexError("This offer is no longer available for feedback.");
+    const existing = await ctx.db
+      .query("resourceReactions")
+      .withIndex("by_visitor_reaction", (q) =>
+        q
+          .eq("resourceId", args.resourceId)
+          .eq("anonymousId", args.anonymousId)
+          .eq("reactionType", args.reactionType),
+      )
+      .unique();
+    if (existing) return existing._id;
+    const now = Date.now();
+    for (const [key, maximum] of [
+      [`reaction:visitor:${args.anonymousId}:${Math.floor(now / 3600000)}`, 20],
+      [`reaction:global:${Math.floor(now / 3600000)}`, 1000],
+    ] as const) {
+      const bucket = await ctx.db
+        .query("intakeLimits")
+        .withIndex("by_key", (q) => q.eq("key", key))
+        .unique();
+      if (bucket && bucket.count >= maximum)
+        throw new ConvexError(
+          "Too many feedback requests. Please try again later.",
+        );
+      if (bucket) await ctx.db.patch(bucket._id, { count: bucket.count + 1 });
+      else
+        await ctx.db.insert("intakeLimits", {
+          key,
+          count: 1,
+          expiresAt: now + 3600000,
+        });
+    }
+    const counter = await ctx.db
+      .query("reactionCounts")
+      .withIndex("by_resource_type", (q) =>
+        q
+          .eq("resourceId", args.resourceId)
+          .eq("reactionType", args.reactionType),
+      )
+      .unique();
+    if (counter) await ctx.db.patch(counter._id, { count: counter.count + 1 });
+    else
+      await ctx.db.insert("reactionCounts", {
+        resourceId: args.resourceId,
+        reactionType: args.reactionType,
+        count: 1,
+      });
+    if (args.reactionType === "claimed")
+      await ctx.db.patch(resource._id, {
+        claimedCount: (resource.claimedCount ?? 0) + 1,
+      });
+    if (args.reactionType === "works")
+      await ctx.db.patch(resource._id, {
+        confirmedCount: (resource.confirmedCount ?? 0) + 1,
+        communityConfirmedAt: now,
+      });
+    return ctx.db.insert("resourceReactions", {
+      ...args,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+export const getSummary = query({
+  args: { resourceId: v.id("resources") },
+  returns: v.record(v.string(), v.number()),
+  handler: async (ctx, { resourceId }) => {
+    const resource = await ctx.db.get(resourceId);
+    if (!resource || resource.status !== "active") return {};
+    const counts = await ctx.db
+      .query("reactionCounts")
+      .withIndex("by_resource_type", (q) => q.eq("resourceId", resourceId))
+      .take(6);
+    return Object.fromEntries(
+      counts.map((row) => [row.reactionType, row.count]),
+    );
+  },
+});
