@@ -1,108 +1,413 @@
-import { Link, createFileRoute } from "@tanstack/react-router";
-import { ArrowLeft, Check, Clock, DotsThree, X } from "@phosphor-icons/react";
+import { useState } from "react";
+import { createFileRoute } from "@tanstack/react-router";
+import type { FunctionReturnType } from "convex/server";
+import type { Id } from "../../convex/_generated/dataModel";
+import { api } from "../../convex/_generated/api";
+import { backend } from "../lib/convex-client";
+import { SiteHeader } from "../components/site-chrome";
+import { useQuery } from "convex/react";
 
 export const Route = createFileRoute("/admin")({ component: AdminPage });
-const candidates = [
-  {
-    provider: "Railway",
-    title: "$5 in hobby credits for new projects",
-    source: "X",
-    age: "18m ago",
-  },
-  {
-    provider: "Hack Club",
-    title: "Free domain for high-school builders",
-    source: "Community",
-    age: "2h ago",
-  },
-  {
-    provider: "Fly.io",
-    title: "Launch credits for open-source apps",
-    source: "Blog",
-    age: "6h ago",
-  },
-];
-
 function AdminPage() {
+  const [token, setToken] = useState("");
+  const [result, setResult] = useState<FunctionReturnType<
+    typeof api.admin.queue
+  > | null>(null);
+  const [selected, setSelected] = useState<Id<"resourceCandidates">[]>([]);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<"pending" | "approved" | "rejected">(
+    "pending",
+  );
+  async function load(cursor: string | null = null, nextStatus = status) {
+    if (!backend) {
+      setError("Backend is not configured.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      setResult(
+        await backend.query(api.admin.queue, {
+          token: token.trim(),
+          status: nextStatus,
+          paginationOpts: { cursor, numItems: 20 },
+        }),
+      );
+      setToken(token.trim());
+      setStatus(nextStatus);
+      setSelected([]);
+    } catch {
+      setError(
+        "Cannot open the queue. Check administrator access and the backend connection.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function decide(decision: "approved" | "rejected") {
+    if (!backend) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.decide, {
+        token,
+        ids: selected,
+        decision,
+        reason,
+      });
+      setReason("");
+      await load();
+    } catch {
+      setError(
+        "Decision was not saved. Check the review reason and confirm that selected offers have valid, unexpired claim links.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <div className="app-shell admin-shell">
-      <header className="site-header">
-        <div className="header-inner">
-          <Link to="/" className="brand">
-            <span className="brand-mark" />
-            <span>Perkdrop</span>
-          </Link>
-          <Link to="/" className="back-link">
-            <ArrowLeft size={16} /> Exit admin
-          </Link>
+      <SiteHeader />
+      <main className="inner-page">
+        <div className="page-heading">
+          <span className="section-kicker">REVIEW WORKSPACE</span>
+          <h1>Review the exceptions.</h1>
+          <p>
+            Duplicates share one record. Trusted offers pass evidence checks;
+            uncertain offers arrive here with reasons.
+          </p>
         </div>
-      </header>
-      <main className="admin-page container">
-        <div className="admin-heading">
-          <div>
-            <span className="eyebrow">INTERNAL REVIEW</span>
-            <h1>Candidate queue</h1>
-            <p>
-              Keep the feed useful. Approve the good stuff, archive the dead
-              stuff.
+        {!result ? (
+          <form
+            className="submission-panel"
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!token.trim()) {
+                setError(
+                  "Enter your administrator token to open the review queue.",
+                );
+                return;
+              }
+              void load();
+            }}
+          >
+            <label htmlFor="admin-token">Administrator token</label>
+            <input
+              id="admin-token"
+              type="password"
+              value={token}
+              onChange={(event) => {
+                setToken(event.target.value);
+                if (error) setError("");
+              }}
+              autoComplete="off"
+              aria-invalid={Boolean(error)}
+              aria-describedby={error ? "admin-error" : "admin-token-help"}
+            />
+            <p id="admin-token-help" className="form-help">
+              Use your private administrator token. It is kept only in this tab.
             </p>
-          </div>
-          <div className="admin-stats">
-            <span>
-              <strong>12</strong> candidates
-            </span>
-            <span>
-              <strong>3</strong> failed checks
-            </span>
-          </div>
-        </div>
-        <div className="admin-tabs">
-          <button className="active">
-            Candidates <span>12</span>
-          </button>
-          <button>
-            Rechecks <span>3</span>
-          </button>
-          <button>
-            Archived <span>84</span>
-          </button>
-        </div>
-        <div className="candidate-list">
-          {candidates.map((candidate) => (
-            <article className="candidate-row" key={candidate.title}>
-              <div>
-                <div className="candidate-meta">
-                  <span>{candidate.provider}</span>
-                  <span>{candidate.source}</span>
-                  <span>{candidate.age}</span>
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={busy}
+            >
+              {busy ? "Opening queue…" : "Open review queue"}
+            </button>
+          </form>
+        ) : (
+          <>
+            <div className="admin-toolbar">
+              <div className="feed-tabs">
+                {(["pending", "approved", "rejected"] as const).map((value) => (
+                  <button
+                    key={value}
+                    aria-pressed={status === value}
+                    className={status === value ? "active" : ""}
+                    disabled={busy}
+                    onClick={() => void load(null, value)}
+                  >
+                    {value === "pending" ? "Needs review" : value}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() => {
+                  setResult(null);
+                  setToken("");
+                  setSelected([]);
+                  setReason("");
+                  setError("");
+                }}
+              >
+                Sign out
+              </button>
+            </div>
+            {result.page.map((item) => (
+              <article key={item.id} className="candidate-row">
+                {status === "pending" && (
+                  <input
+                    aria-label={`Select ${item.title}`}
+                    type="checkbox"
+                    checked={selected.includes(item.id)}
+                    onChange={(event) =>
+                      setSelected(
+                        event.target.checked
+                          ? [...selected, item.id]
+                          : selected.filter((id) => id !== item.id),
+                      )
+                    }
+                  />
+                )}
+                <div className="candidate-copy">
+                  <div className="candidate-meta">
+                    {item.logoUrl && (
+                      <img
+                        src={item.logoUrl}
+                        width="24"
+                        height="24"
+                        alt=""
+                        loading="lazy"
+                        onError={(event) => {
+                          event.currentTarget.hidden = true;
+                        }}
+                      />
+                    )}
+                    <span>{item.provider}</span>
+                    <span>{item.value}</span>
+                  </div>
+                  <h2>{item.title}</h2>
+                  <p>{item.reasons.join(" · ")}</p>
+                  <p>Eligibility: {item.eligibility.join(", ") || "Unknown"}</p>
+                  <ul>
+                    {item.terms.map((term) => (
+                      <li key={term}>{term}</li>
+                    ))}
+                  </ul>
+                  <blockquote>
+                    {item.evidence || "No evidence extracted."}
+                  </blockquote>
+                  <a
+                    href={item.sourceUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Inspect original source ↗
+                  </a>
+                  {item.claimUrl.startsWith("https://") && (
+                    <p>
+                      <a
+                        href={item.claimUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Inspect claim page ↗
+                      </a>
+                    </p>
+                  )}
+                  {item.imageUrl && (
+                    <img
+                      src={item.imageUrl}
+                      alt={`${item.provider} offer preview`}
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      style={{
+                        maxWidth: "min(280px, 100%)",
+                        maxHeight: 160,
+                        objectFit: "contain",
+                      }}
+                      onError={(event) => {
+                        event.currentTarget.hidden = true;
+                      }}
+                    />
+                  )}
                 </div>
-                <h2>{candidate.title}</h2>
+              </article>
+            ))}
+            {!result.page.length && (
+              <div className="empty-state">
+                <h2>Nothing waiting here.</h2>
                 <p>
-                  Extraction looks useful. Final claim URL and eligibility need
-                  a human pass.
+                  New candidates appear after their source has been checked.
                 </p>
               </div>
-              <div className="candidate-actions">
-                <span className="candidate-status">
-                  <Clock size={14} />
-                  Needs review
-                </span>
-                <button className="approve">
-                  <Check size={15} />
-                  Approve
+            )}
+            {status === "pending" && result.page.length > 0 && (
+              <div className="review-controls">
+                <label htmlFor="review-reason">
+                  Review reason ({selected.length} selected)
+                </label>
+                <input
+                  id="review-reason"
+                  value={reason}
+                  onChange={(event) => setReason(event.target.value)}
+                  minLength={8}
+                  maxLength={500}
+                  placeholder="What did you verify?"
+                />
+                <button
+                  className="button button-primary"
+                  disabled={
+                    busy || !selected.length || reason.trim().length < 8
+                  }
+                  onClick={() => void decide("approved")}
+                >
+                  Approve selected
                 </button>
-                <button className="reject">
-                  <X size={15} />
-                  Reject
+                <button
+                  className="button"
+                  disabled={
+                    busy || !selected.length || reason.trim().length < 8
+                  }
+                  onClick={() => void decide("rejected")}
+                >
+                  Reject selected
                 </button>
-                <button className="icon-button" aria-label="More actions">
-                  <DotsThree size={18} />
-                </button>
+              </div>
+            )}
+            <div className="admin-toolbar">
+              <button
+                className="button"
+                disabled={busy}
+                onClick={() => void load()}
+              >
+                First page / refresh
+              </button>
+              <button
+                className="button"
+                disabled={busy || result.isDone}
+                onClick={() => void load(result.continueCursor)}
+              >
+                Next page
+              </button>
+            </div>
+          </>
+        )}
+        {result && <DiscoveryStatus token={token} />}
+        {result && <FailedJobs token={token} />}
+        {error && (
+          <p id="admin-error" className="form-error" role="alert">
+            {error}
+          </p>
+        )}
+      </main>
+    </div>
+  );
+}
+
+function DiscoveryStatus({ token }: { token: string }) {
+  const data = useQuery(api.admin.discoveryStatus, { token });
+  return (
+    <section className="detail-section" aria-label="Automatic discovery">
+      <h2>Automatic discovery</h2>
+      {!data ? (
+        <p role="status">Loading discovery activity…</p>
+      ) : (
+        <>
+          <p>
+            {data.enabled ? "Active" : "Paused"} ·{" "}
+            {data.searches.filter((search) => search.enabled).length} enabled
+            searches. Recent public results are checked every three hours. Each
+            search checks up to five links.
+          </p>
+          <p>
+            Completed searches send new links for extraction and review. Only
+            approved offers appear in the public collection.
+          </p>
+          {!data.runs.length && <p>No discovery searches have run yet.</p>}
+          {data.runs.map((run) => (
+            <article className="candidate-row" key={run.id}>
+              <div className="candidate-copy">
+                <h3>{run.query}</h3>
+                <p>
+                  {new Date(run.startedAt).toLocaleString()} · {run.status}
+                </p>
+                <p>
+                  {run.found} found · {run.queued} queued · {run.duplicates}{" "}
+                  duplicates · {run.limited} skipped by limits
+                </p>
+                {run.message && (
+                  <p className="form-error" role="alert">
+                    {run.message}
+                  </p>
+                )}
               </div>
             </article>
           ))}
+        </>
+      )}
+    </section>
+  );
+}
+
+function FailedJobs({ token }: { token: string }) {
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const jobs = useQuery(api.admin.failedJobs, {
+    token,
+    paginationOpts: { cursor, numItems: 10 },
+  });
+  async function retry(jobId: Id<"intakeJobs">) {
+    setBusy(true);
+    setError("");
+    try {
+      await backend?.mutation(api.admin.retry, { token, jobId });
+    } catch {
+      setError("Retry could not be scheduled. Refresh and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="detail-section">
+      <h2>Extraction failures</h2>
+      <p>
+        Failed requests stop after three attempts. Retry after resolving the
+        source or service issue.
+      </p>
+      {jobs?.page.map((job) => (
+        <div className="candidate-row" key={job.id}>
+          <div className="candidate-copy">
+            <p>{job.url}</p>
+            <p>{job.message}</p>
+          </div>
+          <button
+            className="button"
+            disabled={busy}
+            onClick={() => void retry(job.id)}
+          >
+            Retry source
+          </button>
         </div>
-      </main>
-    </div>
+      ))}
+      {jobs && !jobs.page.length && <p>No failed jobs on this page.</p>}
+      <div className="admin-toolbar">
+        <button
+          className="button"
+          disabled={!cursor}
+          onClick={() => setCursor(null)}
+        >
+          First page
+        </button>
+        <button
+          className="button"
+          disabled={!jobs || jobs.isDone}
+          onClick={() => jobs && setCursor(jobs.continueCursor)}
+        >
+          Next failures
+        </button>
+      </div>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }

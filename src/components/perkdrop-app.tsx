@@ -1,463 +1,296 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
-  CaretDown,
-  Check,
-  Compass,
-  Funnel,
-  Globe,
+  ArrowUpRight,
   MagnifyingGlass,
-  SlidersHorizontal,
-  UserCircle,
   X,
+  Clock,
+  Code,
+  GraduationCap,
+  Cube,
+  Check,
+  Sparkle,
 } from "@phosphor-icons/react";
-import {
-  audiences,
-  categories,
-  drops,
-  sortOptions,
-  type Drop,
-} from "../lib/demo-data";
-import { paginate } from "../lib/pagination";
+import { audiences, categories } from "../lib/catalog";
 
-function ProviderMark({ drop }: { drop: Drop }) {
-  const [failed, setFailed] = useState(false);
+import { SiteHeader, SiteFooter } from "./site-chrome";
+import { LiveFeed } from "./live-feed";
+import { backend } from "../lib/convex-client";
+import type { FunctionReturnType } from "convex/server";
+import { api } from "../../convex/_generated/api";
+import { useDebouncedValue } from "../lib/use-debounced-value";
 
-  return (
-    <span className="provider-mark" aria-hidden="true">
-      {failed ? (
-        drop.providerMark
-      ) : (
-        <img src={drop.logoUrl} alt="" onError={() => setFailed(true)} />
-      )}
-    </span>
-  );
-}
-
-function DropRow({ drop, index }: { drop: Drop; index: number }) {
-  return (
-    <article
-      className="drop-row"
-      style={{ "--card-index": index } as CSSProperties}
-    >
-      <div className="drop-row-index" aria-hidden="true">
-        {String(index + 1).padStart(2, "0")}
-      </div>
-      <ProviderMark drop={drop} />
-      <div className="drop-row-copy">
-        <div className="drop-row-provider">
-          <span>{drop.provider}</span>
-          <span>{drop.ago}</span>
-        </div>
-        <Link
-          to="/drop/$slug"
-          params={{ slug: drop.slug }}
-          className="drop-title-link"
-        >
-          <h3>{drop.title}</h3>
-        </Link>
-        <p>{drop.description}</p>
-      </div>
-      <div className="drop-row-tags" aria-label="Offer details">
-        <span>{drop.resourceType}</span>
-        <span>{drop.region}</span>
-        <span>{drop.requiresCard ? "Card required" : "No card"}</span>
-      </div>
-      <div className="drop-row-value">
-        <strong>{drop.value}</strong>
-        <span>{drop.claimed} claimed</span>
-      </div>
-      <Link
-        to="/drop/$slug"
-        params={{ slug: drop.slug }}
-        className="row-action"
-        aria-label={`View ${drop.title}`}
-      >
-        <ArrowRight size={19} weight="bold" />
-      </Link>
-    </article>
-  );
-}
-
-function ForMePopover({ onClose }: { onClose: () => void }) {
-  const [preferences, setPreferences] = useState({
-    developer: true,
-    student: false,
-    startup: false,
-    oss: false,
-  });
-  const toggle = (key: keyof typeof preferences) =>
-    setPreferences((current) => ({ ...current, [key]: !current[key] }));
-
-  return (
-    <div
-      className="for-me-popover"
-      role="dialog"
-      aria-label="Personalize your feed"
-    >
-      <div className="popover-header">
-        <div>
-          <span className="form-kicker">Your preferences</span>
-          <h3>Shape the next scan.</h3>
-        </div>
-        <button
-          className="icon-button"
-          aria-label="Close preferences"
-          onClick={onClose}
-        >
-          <X size={18} />
-        </button>
-      </div>
-      <label className="field-label" htmlFor="country">
-        Country
-      </label>
-      <div className="select-field">
-        <Globe size={16} />
-        <select id="country" defaultValue="India">
-          <option>India</option>
-          <option>United States</option>
-          <option>United Kingdom</option>
-          <option>Worldwide</option>
-        </select>
-        <CaretDown size={15} />
-      </div>
-      <span className="field-label">I am</span>
-      <div className="preference-grid">
-        {(
-          [
-            ["developer", "Developer"],
-            ["student", "Student"],
-            ["startup", "Startup"],
-            ["oss", "OSS maintainer"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            className={`preference-option ${preferences[key] ? "selected" : ""}`}
-            onClick={() => toggle(key)}
-          >
-            <span className="check-box">
-              {preferences[key] ? <Check size={12} weight="bold" /> : null}
-            </span>
-            {label}
-          </button>
-        ))}
-      </div>
-      <p className="popover-note">
-        Stored only in this browser. No account needed.
-      </p>
-    </div>
-  );
-}
-
-export function PerkdropApp() {
+export function PerkdropApp({
+  initialData,
+}: {
+  initialData?: FunctionReturnType<typeof api.catalog.page> | null;
+}) {
   const [query, setQuery] = useState("");
+  const settledQuery = useDebouncedValue(query);
   const [category, setCategory] = useState("Everything");
   const [audience, setAudience] = useState("Everyone");
-  const [sort, setSort] = useState("Trending");
-  const [requestedPage, setRequestedPage] = useState(1);
-  const [showPreferences, setShowPreferences] = useState(false);
-
-  const filteredDrops = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    const result = drops.filter((drop) => {
-      const matchesQuery =
-        !normalized ||
-        [
-          drop.title,
-          drop.provider,
-          drop.description,
-          drop.category,
-          drop.eligibility,
-          drop.resourceType,
-        ].some((value) => value.toLowerCase().includes(normalized));
-      const matchesCategory =
-        category === "Everything" || drop.category === category;
-      const matchesAudience =
-        audience === "Everyone" ||
-        drop.eligibility.toLowerCase().includes(audience.toLowerCase()) ||
-        (audience === "Hackathons" &&
-          drop.resourceType.toLowerCase().includes("hackathon"));
-
-      return matchesQuery && matchesCategory && matchesAudience;
+  const [tab, setTab] = useState("All perks");
+  const change = (update: () => void) => update();
+  const chooseCollection = (value: string) => {
+    change(() => {
+      setCategory(value);
+      setQuery("");
+      setAudience("Everyone");
+      setTab("All perks");
     });
-
-    if (sort === "Ending Soon") return result.filter((drop) => drop.expires);
-    if (sort === "Most Claimed")
-      return [...result].sort(
-        (a, b) => Number.parseInt(b.claimed) - Number.parseInt(a.claimed),
-      );
-    if (sort === "Recently Confirmed")
-      return [...result].sort(
-        (a, b) => Number.parseInt(b.confirmed) - Number.parseInt(a.confirmed),
-      );
-    return result;
-  }, [audience, category, query, sort]);
-
-  const {
-    items: visibleDrops,
-    page,
-    pageCount,
-  } = paginate(filteredDrops, requestedPage, 5);
-  const resetPage = (callback: () => void) => {
-    callback();
-    setRequestedPage(1);
-  };
-
-  const clearFilters = () => {
-    setQuery("");
-    setCategory("Everything");
-    setAudience("Everyone");
-    setRequestedPage(1);
+    document.getElementById("feed")?.scrollIntoView({ behavior: "smooth" });
   };
 
   return (
     <div className="app-shell">
-      <header className="site-header">
-        <div className="header-inner">
-          <Link to="/" className="brand" aria-label="Perkdrop home">
-            <span className="brand-mark" />
-            <span>Perkdrop</span>
-            <span className="brand-domain">.click</span>
-          </Link>
-          <nav className="desktop-nav" aria-label="Main navigation">
-            <Link to="/" className="active">
-              Discover
-            </Link>
-            <a href="#feed">Index</a>
-            <a href="#feed">Expiring</a>
-          </nav>
-          <div className="header-actions">
-            <a href="#search" className="search-nav">
-              <MagnifyingGlass size={17} /> Search
-            </a>
-            <Link to="/submit" className="submit-link">
-              Submit a find <ArrowRight size={15} />
-            </Link>
-          </div>
-        </div>
-      </header>
-
+      <a className="skip-link" href="#feed">
+        Skip to resources
+      </a>
+      <SiteHeader />
       <main>
-        <section className="hero-index">
-          <div className="hero-image" aria-hidden="true">
-            <img src="/perkdrop-hero.png" alt="" />
-          </div>
-          <div className="hero-scrim" aria-hidden="true" />
-          <div className="hero-grid container">
-            <div className="hero-copy">
-              <span className="eyebrow">Useful, free, and still live</span>
-              <h1>Find the good stuff before it disappears.</h1>
-              <p>Perks, credits, tools, and programs worth claiming today.</p>
-              <div className="hero-actions">
-                <a className="primary-button" href="#feed">
-                  Explore the index <ArrowRight size={17} />
-                </a>
-                <Link to="/submit" className="secondary-button">
-                  Submit a find
-                </Link>
-              </div>
-            </div>
-            <aside className="hero-status" aria-label="Index status">
-              <span className="status-label">Today&apos;s signal</span>
-              <strong>142</strong>
-              <span>offers checked this week</span>
-              <div className="status-divider" />
-              <p>New finds are checked before they make the index.</p>
-            </aside>
+        <section className="hero" aria-labelledby="hero-title">
+          <div className="hero-background" aria-hidden="true" />
+          <div className="hero-content">
+            <a href="#feed" className="hero-label">
+              <span className="mini-mark">
+                <Sparkle size={13} />
+              </span>
+              Your next project starts here
+              <ArrowRight size={13} />
+            </a>
+            <h1 id="hero-title">
+              Good things come
+              <br />
+              <span>in free drops.</span>
+            </h1>
+            <p>
+              Discover free tools, credits, and opportunities.
+              <br className="desktop-break" /> Less time searching. More time
+              building.
+            </p>
+            <a href="#feed" className="button button-primary hero-browse">
+              Browse resources <ArrowRight size={16} />
+            </a>
           </div>
         </section>
 
-        <section className="signal-bar" aria-label="Recent discoveries">
-          <div className="container signal-inner">
-            <span className="signal-title">New in the index</span>
-            <div className="signal-track">
-              <span>
-                <strong>$100 cloud credits</strong> for new builders
-              </span>
-              <span>
-                <strong>Free domain</strong> for students
-              </span>
-              <span>
-                <strong>AI API credits</strong> for prototypes
-              </span>
-              <span>
-                <strong>Hosting perk</strong> for open source
-              </span>
-            </div>
-          </div>
-        </section>
-
-        <section className="feed-section container" id="feed">
-          <div className="feed-intro">
+        <section className="collections-section" id="collections">
+          <div className="section-heading">
             <div>
-              <h2>The useful internet, organized.</h2>
-              <p>
-                Browse active offers by audience, category, or what is about to
-                expire.
-              </p>
+              <span className="section-kicker">A GOOD PLACE TO START</span>
+              <h2>A head start, whatever you make.</h2>
             </div>
-            <button
-              className={`for-me-button ${showPreferences ? "selected" : ""}`}
-              onClick={() => setShowPreferences((value) => !value)}
-            >
-              <UserCircle size={18} /> Tune my feed
-            </button>
-            {showPreferences ? (
-              <ForMePopover onClose={() => setShowPreferences(false)} />
-            ) : null}
+            <a href="#feed" className="text-link">
+              Browse all perks <ArrowRight size={15} />
+            </a>
           </div>
-
-          <div className="feed-workspace">
-            <aside className="filter-rail" aria-label="Feed filters">
-              <div className="filter-rail-heading">
-                <SlidersHorizontal size={17} />
-                <span>Browse by</span>
-              </div>
-              <div className="rail-group">
-                <span>For</span>
-                {audiences.map((item) => (
-                  <button
-                    key={item}
-                    className={audience === item ? "active" : ""}
-                    onClick={() => resetPage(() => setAudience(item))}
-                  >
-                    {item}
-                  </button>
-                ))}
-              </div>
-              <div className="rail-group">
-                <span>Category</span>
+          <div className="collection-links">
+            {[
+              {
+                title: "Build your next idea",
+                text: "Cloud credits, APIs, and developer tools.",
+                category: "Developer Tools",
+                icon: Code,
+              },
+              {
+                title: "Make student life easier",
+                text: "Learning, domains, and tools for your degree.",
+                category: "Education",
+                icon: GraduationCap,
+              },
+              {
+                title: "Keep open source going",
+                text: "A little support for the work you share.",
+                category: "Open Source",
+                icon: Cube,
+              },
+            ].map((item) => (
+              <button
+                className="collection-link"
+                key={item.title}
+                onClick={() => chooseCollection(item.category)}
+              >
+                <span className="collection-icon">
+                  <item.icon size={25} weight="light" />
+                </span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <span>{item.text}</span>
+                </span>
+                <ArrowUpRight size={18} />
+              </button>
+            ))}
+          </div>
+        </section>
+        <section
+          className="discovery-section"
+          id="feed"
+          aria-labelledby="feed-title"
+        >
+          <div className="section-heading">
+            <div>
+              <h2 id="feed-title">Your next unfair advantage.</h2>
+              <p>Find something useful. Put it to work.</p>
+            </div>
+            <span className="preview-label">Reviewed collection</span>
+          </div>
+          <div className="feed-navigation">
+            <div className="feed-tabs" aria-label="Resource views">
+              {["All perks", "Ending soon"].map((item) => (
+                <button
+                  key={item}
+                  aria-pressed={tab === item}
+                  className={tab === item ? "active" : ""}
+                  onClick={() => change(() => setTab(item))}
+                >
+                  {item === "Ending soon" && <Clock size={15} />} {item}
+                </button>
+              ))}
+            </div>
+            <span className="inline-sort">Newest first</span>
+          </div>
+          <div className="feed-filters">
+            <label className="feed-search">
+              <MagnifyingGlass size={17} />
+              <span className="sr-only">Search resources</span>
+              <input
+                aria-label="Search resources"
+                value={query}
+                onChange={(event) => {
+                  setQuery(event.target.value);
+                }}
+                placeholder="Search perks..."
+              />
+              {query && (
+                <button
+                  aria-label="Clear search"
+                  onClick={() => change(() => setQuery(""))}
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </label>
+            <label className="filter-select">
+              <span>Category</span>
+              <select
+                value={category}
+                aria-label="Category"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  change(() => setCategory(value));
+                }}
+              >
                 {categories.map((item) => (
-                  <button
-                    key={item}
-                    className={category === item ? "active" : ""}
-                    onClick={() => resetPage(() => setCategory(item))}
-                  >
-                    {item}
-                  </button>
+                  <option key={item}>{item}</option>
                 ))}
+              </select>
+            </label>
+            <label className="filter-select">
+              <span>For</span>
+              <select
+                value={audience}
+                aria-label="Audience"
+                onChange={(event) => {
+                  const value = event.target.value;
+                  change(() => setAudience(value));
+                }}
+              >
+                {audiences.map((item) => (
+                  <option key={item}>{item}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {backend ? (
+            <LiveFeed
+              initialData={
+                !query &&
+                category === "Everything" &&
+                audience === "Everyone" &&
+                tab === "All perks"
+                  ? initialData
+                  : undefined
+              }
+              audience={audience}
+              key={JSON.stringify([settledQuery, category, audience, tab])}
+              search={settledQuery}
+              category={category}
+              endingSoon={tab === "Ending soon"}
+            />
+          ) : (
+            <div className="empty-state" role="status">
+              <h3>Resources are temporarily unavailable.</h3>
+              <p>Please check back shortly.</p>
+            </div>
+          )}
+        </section>
+        <section className="about-section" id="about">
+          <div className="about-title">
+            <span className="section-kicker">LESS NOISE. MORE USEFUL.</span>
+            <h2>
+              The good stuff deserves
+              <br />
+              to be found.
+            </h2>
+            <p>
+              Perkdrop brings scattered resources into one place, with the
+              details you need to decide.
+            </p>
+          </div>
+          <div className="about-details">
+            <div>
+              <span>
+                <MagnifyingGlass size={20} />
+              </span>
+              <div>
+                <h3>Discover something useful</h3>
+                <p>
+                  Browse tools, credits, learning resources, and programs by
+                  category or audience.
+                </p>
               </div>
-            </aside>
-
-            <div className="feed-main">
-              <div className="feed-toolbar">
-                <div className="search-panel" id="search">
-                  <label className="sr-only" htmlFor="resource-search">
-                    Search resources
-                  </label>
-                  <MagnifyingGlass size={20} />
-                  <input
-                    id="resource-search"
-                    value={query}
-                    onChange={(event) =>
-                      resetPage(() => setQuery(event.target.value))
-                    }
-                    placeholder="Search credits, tools, companies, or APIs"
-                  />
-                </div>
-                <div className="sort-control">
-                  <Funnel size={15} />
-                  <label htmlFor="sort">Sort</label>
-                  <select
-                    id="sort"
-                    value={sort}
-                    onChange={(event) =>
-                      resetPage(() => setSort(event.target.value))
-                    }
-                  >
-                    {sortOptions.map((item) => (
-                      <option key={item}>{item}</option>
-                    ))}
-                  </select>
-                  <CaretDown size={14} />
-                </div>
+            </div>
+            <div>
+              <span>
+                <Check size={20} />
+              </span>
+              <div>
+                <h3>Read the fine print</h3>
+                <p>
+                  See eligibility, region, and offer details. Always confirm
+                  current terms with the provider.
+                </p>
               </div>
-
-              <div className="feed-summary">
-                <span>
-                  <strong>{filteredDrops.length}</strong> active finds
-                </span>
-                <span>Checked by people, not a content farm.</span>
-              </div>
-              <div className="feed-list">
-                {visibleDrops.length ? (
-                  visibleDrops.map((drop, index) => (
-                    <DropRow key={drop.slug} drop={drop} index={index} />
-                  ))
-                ) : (
-                  <div className="empty-state">
-                    <Compass size={28} />
-                    <h3>Nothing is matching yet.</h3>
-                    <p>
-                      Try another keyword, or clear the filters to see the full
-                      index.
-                    </p>
-                    <button onClick={clearFilters}>Clear filters</button>
-                  </div>
-                )}
-              </div>
-
-              <div className="pagination" aria-label="Feed pagination">
-                <span>
-                  Page {page} of {pageCount}
-                </span>
-                <div className="pagination-buttons">
-                  <button
-                    aria-label="Previous page"
-                    disabled={page === 1}
-                    onClick={() => setRequestedPage(page - 1)}
-                  >
-                    Previous
-                  </button>
-                  {Array.from(
-                    { length: pageCount },
-                    (_, index) => index + 1,
-                  ).map((item) => (
-                    <button
-                      key={item}
-                      className={page === item ? "active" : ""}
-                      aria-current={page === item ? "page" : undefined}
-                      onClick={() => setRequestedPage(item)}
-                    >
-                      {item}
-                    </button>
-                  ))}
-                  <button
-                    aria-label="Next page"
-                    disabled={page === pageCount}
-                    onClick={() => setRequestedPage(page + 1)}
-                  >
-                    Next
-                  </button>
-                </div>
+            </div>
+            <div>
+              <span>
+                <ArrowUpRight size={20} />
+              </span>
+              <div>
+                <h3>Make it yours</h3>
+                <p>
+                  Follow the original source to claim a perk. Found another?
+                  Share it with the community.
+                </p>
               </div>
             </div>
           </div>
+        </section>
+        <section className="submit-banner">
+          <span className="banner-icon">
+            <Sparkle size={28} weight="light" />
+          </span>
+          <div>
+            <h2>Found a good thing?</h2>
+            <p>Make someone else's next project a little easier.</p>
+          </div>
+          <Link to="/submit" className="button button-primary">
+            Submit a find <ArrowRight size={16} />
+          </Link>
         </section>
       </main>
-
-      <footer className="site-footer">
-        <div className="container footer-inner">
-          <div>
-            <Link to="/" className="brand">
-              <span className="brand-mark" />
-              <span>Perkdrop</span>
-              <span className="brand-domain">.click</span>
-            </Link>
-            <p>Free resources that are actually worth your time.</p>
-          </div>
-          <div className="footer-links">
-            <Link to="/submit">Submit a find</Link>
-            <a href="#feed">Explore the index</a>
-            <a href="mailto:hello@perkdrop.click">Contact</a>
-          </div>
-          <div className="footer-note">
-            Built for people who keep making things.
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

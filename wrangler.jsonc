@@ -1,7 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
-  "compatibility_date": "2025-09-02",
+  "name": "perkdrop-click",
+  "compatibility_date": "2026-09-10",
+  "account_id": "b3770b33db734b1d22a67476db79d2e8",
+  "workers_dev": true,
   "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry"
+  "main": "./src/server.ts",
 }
