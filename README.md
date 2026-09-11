@@ -1,7 +1,7 @@
 <p align="center"><img src="public/perkdrop-mark.svg" width="72" height="72" alt="Perkdrop logo"></p>
 <h1 align="center">Perkdrop.click</h1>
 <p align="center">Free tools, credits, and programs with eligibility, evidence, and original links.</p>
-<p align="center"><a href="https://perkdrop-click.sansynx.workers.dev">Visit Perkdrop</a></p>
+<p align="center"><a href="https://perkdrop-click.sanathr106.chatgpt.site">Visit Perkdrop</a></p>
 
 ## How it works
 
@@ -66,6 +66,8 @@ pnpm run deploy
 ```
 
 Deploy backend changes first. Workers hosts the server-rendered app; forks must use their own account configuration in [wrangler.jsonc](wrangler.jsonc).
+
+The public hackathon deployment is hosted on chatgpt.site using Sites. The Cloudflare Workers deployment remains available. `pnpm run deploy` updates Cloudflare only; publish Sites through its hosting workflow using the project in [.openai/hosting.json](.openai/hosting.json). Forks must register their own Sites project.
 
 Routes live in [src/routes](src/routes); ingestion, moderation, discovery, and lifecycle code live in [convex](convex). Tests sit beside the backend modules.
 

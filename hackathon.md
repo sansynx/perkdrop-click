@@ -3,16 +3,16 @@
 - **Project:** Perkdrop.click
 - **Event:** Convex All Gas Hackathon
 - **What it does:** Collects free tools, credits, and programs with source links, eligibility details, and moderation before publication.
-- **Live app:** https://perkdrop-click.sansynx.workers.dev
+- **Live app:** https://perkdrop-click.sanathr106.chatgpt.site
 - **Repo:** https://github.com/sansynx/perkdrop-click
-- **Frontend:** Other, TanStack Start on Cloudflare Workers
+- **Frontend:** Other, TanStack Start on Sites, with a separate Cloudflare Workers deployment
 - **Convex deployment:** https://gregarious-canary-249.convex.cloud
 - **Components:** @convex-dev/workflow
 - **Convex features:** schema, tables, indexes, full-text search, queries, mutations, actions, crons, scheduled functions, realtime queries
 - **Auth:** Other, server-validated administrator token; anonymous public submissions
 - **AI models:** none explicitly configured; Firecrawl performs structured extraction
 - **Started:** 2026-09-09T14:51:40Z
-- **Last updated:** 2026-09-11T12:41:16Z
+- **Last updated:** 2026-09-11T12:56:50Z
 
 ## Discovery and publication
 
@@ -77,6 +77,10 @@ Added a GitHub-rendered Mermaid overview and specific notes about using Codex to
 
 Added 28px above the main hero button and 24px before the results divider to separate it from the filters (`src/styles.css`). Formatting, type checking, and 33 backend tests passed; the production build completed. Added this build log and the submission checklist below.
 
+### 2026-09-11 - public Sites deployment
+
+Published the existing server-rendered app publicly on chatgpt.site with its Convex backend unchanged. Sites reported a successful deployment at 12:56:50 UTC. The source and build scan found zero matches for configured secrets, and the package excluded local environment files. Formatting, type checking, and all 33 tests passed before publication. This establishes hosting status, not completion of the remaining submission requirements.
+
 ## Submission requirements and current gaps
 
 Checked against the [official event page](https://www.convex.dev/hackathons/all-gas) on September 11, 2026. Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
@@ -84,7 +88,7 @@ Checked against the [official event page](https://www.convex.dev/hackathons/all-
 - [x] Convex backend and Firecrawl integration implemented.
 - [x] Root `hackathon.md` created from repository evidence.
 - [x] Public repository, made public with the owner's approval.
-- [ ] Public app on `convex.site` or `chatgpt.site`. A Sites project is registered but not deployed. Publishing is paused for owner review; the current live deployment uses Workers.
+- [x] Public app on `convex.site` or `chatgpt.site`. Sites confirmed the public chatgpt.site deployment on September 11.
 - [ ] Sponsor-stack product usage. Direct OpenAI functionality and AgentMail integration are absent; Codex was used during development.
 - [ ] Confirm Luma registration and participant eligibility, including age 18+, location restrictions, and original work begun after the event's August 25 start.
 - [ ] Demo video under three minutes. No video supplied.
