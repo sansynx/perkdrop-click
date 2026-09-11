@@ -1092,10 +1092,7 @@ button:active:not(:disabled),
   border-bottom: 1px solid var(--line);
 }
 .candidate-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+  display: block;
   padding: 24px 0;
   border-bottom: 1px solid var(--line);
 }
@@ -1488,6 +1485,7 @@ button:active:not(:disabled),
 }
 .candidate-copy {
   min-width: 0;
+  width: 100%;
   overflow-wrap: anywhere;
 }
 .candidate-copy > img {
@@ -1534,17 +1532,6 @@ button:active:not(:disabled),
   .mobile-menu,
   .pagination button {
     min-height: 44px;
-  }
-  .admin-shell .candidate-row {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-  .admin-shell .candidate-row > .candidate-copy:first-child {
-    grid-column: 1 / -1;
-  }
-  .admin-shell .candidate-row > .button {
-    grid-column: 1 / -1;
-    justify-self: center;
   }
   .admin-shell .review-controls .button {
     flex: 1 1 140px;
@@ -1647,4 +1634,150 @@ button:active:not(:disabled),
 .url-input input {
   background: transparent;
   color: var(--ink);
+}
+
+.admin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px clamp(20px, 5vw, 64px);
+  border-bottom: 1px solid var(--line);
+  background: var(--paper, #fafafa);
+}
+.admin-shell .inner-page {
+  padding-top: 32px;
+}
+.admin-shell .admin-workspace .page-heading {
+  text-align: left;
+  padding-block: 0 24px;
+}
+.admin-shell .admin-workspace .page-heading > p {
+  margin-inline: 0;
+}
+.admin-shell .admin-workspace .page-heading h1 {
+  font-size: 32px;
+}
+.admin-shell .admin-login {
+  max-width: 560px;
+}
+.admin-shell .admin-login-form {
+  display: grid;
+  gap: 16px;
+  padding: 28px;
+  margin-top: 24px;
+  box-shadow: none;
+}
+.admin-login-form label {
+  margin: 0;
+}
+.admin-login-form > input {
+  margin: 0;
+  min-height: 48px;
+}
+.admin-shell .admin-login-form > .form-help {
+  margin: 0;
+  color: #626262;
+  line-height: 1.6;
+}
+.admin-shell .admin-login-form > .form-error {
+  margin: 0;
+  width: 100%;
+}
+.admin-shell input:not([type="checkbox"]):focus-visible {
+  outline: 2px solid #c54400;
+  outline-offset: 2px;
+}
+.admin-shell .selectable-candidate {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.admin-shell input[type="checkbox"] {
+  margin: 4px 0 0;
+  flex-shrink: 0;
+}
+.admin-shell .candidate-copy h2 {
+  margin: 8px 0;
+  font-size: 18px;
+}
+.admin-shell .candidate-copy p {
+  margin: 8px 0;
+  color: #626262;
+}
+.admin-shell .candidate-copy blockquote {
+  margin-block: 12px;
+}
+.admin-toolbar {
+  padding-block: 16px;
+  flex-wrap: wrap;
+}
+.admin-failures,
+.admin-activity {
+  margin-top: 32px;
+  border-top: 1px solid var(--line);
+  padding-top: 24px;
+}
+.admin-failures h2,
+.admin-activity h2 {
+  font-size: 20px;
+  margin: 0 0 12px;
+}
+.admin-failures > p {
+  color: #626262;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.failed-job {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.failed-job .button {
+  white-space: nowrap;
+}
+.admin-activity > summary {
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 550;
+  padding-block: 8px;
+}
+.admin-activity > summary span {
+  display: block;
+  font-size: 13px;
+  font-weight: 400;
+  color: #626262;
+  margin-top: 8px;
+}
+.admin-activity .detail-section {
+  padding-block: 20px;
+}
+.discovery-run {
+  padding-block: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.discovery-run h3 {
+  margin: 0 0 8px;
+}
+@media (max-width: 600px) {
+  .admin-shell .admin-login-form {
+    padding: 20px;
+  }
+  .admin-shell .selectable-candidate {
+    gap: 12px;
+  }
+  .failed-job {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .failed-job .button {
+    justify-self: start;
+  }
+  .admin-toolbar .feed-tabs {
+    gap: 12px;
+  }
 }

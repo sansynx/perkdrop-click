@@ -52,13 +52,12 @@ export function PerkdropApp({
         <section className="hero" aria-labelledby="hero-title">
           <div className="hero-background" aria-hidden="true" />
           <div className="hero-content">
-            <a href="#feed" className="hero-label">
+            <span className="hero-label">
               <span className="mini-mark">
                 <Sparkle size={13} />
               </span>
               Your next project starts here
-              <ArrowRight size={13} />
-            </a>
+            </span>
             <h1 id="hero-title">
               Good things come
               <br />
@@ -81,9 +80,6 @@ export function PerkdropApp({
               <span className="section-kicker">A GOOD PLACE TO START</span>
               <h2>A head start, whatever you make.</h2>
             </div>
-            <a href="#feed" className="text-link">
-              Browse all perks <ArrowRight size={15} />
-            </a>
           </div>
           <div className="collection-links">
             {[

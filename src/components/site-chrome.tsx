@@ -20,9 +20,6 @@ export function SiteHeader() {
       <div className="header-inner">
         <Brand />
         <nav className="desktop-nav" aria-label="Main navigation">
-          <Link to="/" hash="feed">
-            Discover
-          </Link>
           <Link to="/" hash="collections">
             Collections
           </Link>
@@ -49,9 +46,6 @@ export function SiteHeader() {
           className="mobile-navigation"
           aria-label="Mobile navigation"
         >
-          <Link to="/" hash="feed" onClick={() => setOpen(false)}>
-            Discover
-          </Link>
           <Link to="/" hash="collections" onClick={() => setOpen(false)}>
             Collections
           </Link>
@@ -79,9 +73,6 @@ export function SiteFooter() {
           </p>
         </div>
         <div className="footer-links">
-          <Link to="/" hash="feed">
-            Discover
-          </Link>
           <Link to="/" hash="collections">
             Collections
           </Link>

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import type { FunctionReturnType } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
 import { api } from "../../convex/_generated/api";
 import { backend } from "../lib/convex-client";
-import { SiteHeader } from "../components/site-chrome";
+import { Brand } from "../components/site-chrome";
 import { useQuery } from "convex/react";
 
 export const Route = createFileRoute("/admin")({ component: AdminPage });
@@ -69,25 +69,38 @@ function AdminPage() {
   }
   return (
     <div className="app-shell admin-shell">
-      <SiteHeader />
-      <main className="inner-page">
+      <header className="admin-header">
+        <Brand />
+        <Link to="/" className="text-link">
+          View website
+        </Link>
+      </header>
+      <main
+        className={`inner-page ${result ? "admin-workspace" : "admin-login"}`}
+      >
         <div className="page-heading">
-          <span className="section-kicker">REVIEW WORKSPACE</span>
-          <h1>Review the exceptions.</h1>
+          <h1>{result ? "Review queue" : "Administrator access"}</h1>
           <p>
-            Duplicates share one record. Trusted offers pass evidence checks;
-            uncertain offers arrive here with reasons.
+            {result
+              ? "Check the source and terms, then select offers to review."
+              : "Sign in to review submissions and manage failed extractions."}
           </p>
         </div>
         {!result ? (
           <form
-            className="submission-panel"
+            className="submission-panel admin-login-form"
             noValidate
             onSubmit={(event) => {
               event.preventDefault();
               if (!token.trim()) {
                 setError(
                   "Enter your administrator token to open the review queue.",
+                );
+                return;
+              }
+              if (token.trim().length < 32) {
+                setError(
+                  "This token is incomplete. Enter your full administrator token.",
                 );
                 return;
               }
@@ -110,6 +123,11 @@ function AdminPage() {
             <p id="admin-token-help" className="form-help">
               Use your private administrator token. It is kept only in this tab.
             </p>
+            {error && (
+              <p id="admin-error" className="form-error" role="alert">
+                {error}
+              </p>
+            )}
             <button
               type="submit"
               className="button button-primary"
@@ -120,6 +138,11 @@ function AdminPage() {
           </form>
         ) : (
           <>
+            {error && (
+              <p id="admin-error" className="form-error" role="alert">
+                {error}
+              </p>
+            )}
             <div className="admin-toolbar">
               <div className="feed-tabs">
                 {(["pending", "approved", "rejected"] as const).map((value) => (
@@ -149,7 +172,10 @@ function AdminPage() {
               </button>
             </div>
             {result.page.map((item) => (
-              <article key={item.id} className="candidate-row">
+              <article
+                key={item.id}
+                className={`candidate-row ${status === "pending" ? "selectable-candidate" : ""}`}
+              >
                 {status === "pending" && (
                   <input
                     aria-label={`Select ${item.title}`}
@@ -288,12 +314,15 @@ function AdminPage() {
             </div>
           </>
         )}
-        {result && <DiscoveryStatus token={token} />}
         {result && <FailedJobs token={token} />}
-        {error && (
-          <p id="admin-error" className="form-error" role="alert">
-            {error}
-          </p>
+        {result && (
+          <details className="admin-activity">
+            <summary>
+              Discovery activity{" "}
+              <span>Search history and duplicate counts</span>
+            </summary>
+            <DiscoveryStatus token={token} />
+          </details>
         )}
       </main>
     </div>
@@ -321,7 +350,7 @@ function DiscoveryStatus({ token }: { token: string }) {
           </p>
           {!data.runs.length && <p>No discovery searches have run yet.</p>}
           {data.runs.map((run) => (
-            <article className="candidate-row" key={run.id}>
+            <article className="discovery-run" key={run.id}>
               <div className="candidate-copy">
                 <h3>{run.query}</h3>
                 <p>
@@ -357,7 +386,8 @@ function FailedJobs({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      await backend?.mutation(api.admin.retry, { token, jobId });
+      if (!backend) throw new Error("Backend unavailable");
+      await backend.mutation(api.admin.retry, { token, jobId });
     } catch {
       setError("Retry could not be scheduled. Refresh and try again.");
     } finally {
@@ -365,14 +395,15 @@ function FailedJobs({ token }: { token: string }) {
     }
   }
   return (
-    <section className="detail-section">
+    <section className="admin-failures">
       <h2>Extraction failures</h2>
       <p>
         Failed requests stop after three attempts. Retry after resolving the
         source or service issue.
       </p>
+      {!jobs && <p role="status">Loading failed extractions…</p>}
       {jobs?.page.map((job) => (
-        <div className="candidate-row" key={job.id}>
+        <div className="failed-job" key={job.id}>
           <div className="candidate-copy">
             <p>{job.url}</p>
             <p>{job.message}</p>
