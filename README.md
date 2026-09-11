@@ -42,6 +42,16 @@ The administrator queue reads pending candidates from that same backend. Approva
 
 Provider favicons use the offer's HTTPS origin, with initials as fallback. Icons do not establish trust.
 
+## Reviewer demo and agent access
+
+Open [/reviewer-demo](https://perkdrop-click.sanathr106.chatgpt.site/reviewer-demo), or choose **Try reviewer demo** in the footer or admin sign-in page. It opens immediately without typing credentials. `AllGas2026` is a public demo label, not a production administrator password.
+
+The demo uses three dated copies of real discovered offers. It clearly labels extracted claims as unverified. Enter a review reason, approve or reject a copy, and switch between decision filters. Reset or reload to start again. Demo decisions live only in the current tab; they never publish offers, modify Convex, trust sources, or trigger paid extraction. The real `/admin` route still requires the private administrator token.
+
+Browsers supporting the experimental [WebMCP API](https://developer.chrome.com/docs/ai/webmcp/imperative-api) can discover `perkdrop_navigate` for public navigation. The demo additionally exposes `perkdrop_demo_list`, `perkdrop_demo_decide`, and `perkdrop_demo_reset`. Tools use the same local decision validation as the buttons. External offer text is marked as untrusted data. No production moderation or submission tool is exposed.
+
+WebMCP uses feature detection on `document.modelContext` and removes registrations when components unmount. No polyfill, external agent script, or new dependency is required. Unsupported browsers retain all ordinary controls. This is browser-side WebMCP, not a remotely accessible MCP server, and it does not guarantee that every judging agent supports the API.
+
 ## Run locally
 
 Use Node 22.22.3+ and pnpm 11.21.0.

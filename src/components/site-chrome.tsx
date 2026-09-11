@@ -77,6 +77,7 @@ export function SiteFooter() {
             Collections
           </Link>
           <Link to="/submit">Submit a find</Link>
+          <Link to="/reviewer-demo">Try reviewer demo</Link>
         </div>
         <p className="footer-message">
           Something useful is out there.

@@ -86,6 +86,17 @@ function AdminPage() {
               : "Sign in to review submissions and manage failed extractions."}
           </p>
         </div>
+        {!result && (
+          <p className="demo-entry">
+            <Link to="/reviewer-demo" className="button">
+              Try reviewer demo
+            </Link>
+            <span>
+              No administrator credentials needed. Demo decisions never change
+              live offers.
+            </span>
+          </p>
+        )}
         {!result ? (
           <form
             className="submission-panel admin-login-form"

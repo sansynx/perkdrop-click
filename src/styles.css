@@ -1137,6 +1137,135 @@ button:active:not(:disabled),
   line-height: 1.7;
   padding-top: 20px;
 }
+.demo-entry {
+  display: grid;
+  gap: 12px;
+  margin: 24px 0;
+  font-size: 13px;
+  color: #595959;
+}
+.reviewer-demo {
+  max-width: 1000px;
+}
+.demo-notice {
+  padding: 20px 0;
+  border-block: 1px solid var(--line);
+  line-height: 1.7;
+  font-size: 14px;
+}
+.demo-notice p {
+  margin: 8px 0 0;
+  color: #595959;
+  max-width: 74ch;
+}
+.demo-toolbar,
+.demo-filters,
+.demo-source-links,
+.demo-offer-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.demo-toolbar {
+  justify-content: space-between;
+  margin: 24px 0;
+}
+.demo-filters .button[aria-pressed="true"] {
+  color: var(--orange);
+  border-color: var(--orange);
+  background: var(--orange-soft);
+}
+.demo-reason {
+  display: grid;
+  gap: 10px;
+}
+.demo-reason label {
+  font-size: 14px;
+  font-weight: 550;
+}
+.demo-reason textarea {
+  width: 100%;
+  min-height: 88px;
+  resize: vertical;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  padding: 14px;
+  font: inherit;
+  font-size: 14px;
+  background: white;
+}
+.demo-reason textarea::placeholder {
+  color: #666;
+}
+.demo-reason p {
+  margin: 0;
+  font-size: 12px;
+  color: #595959;
+}
+.demo-message {
+  min-height: 24px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.demo-offer-heading {
+  justify-content: space-between;
+}
+.demo-offer-heading h2 {
+  font-size: 20px;
+  margin: 8px 0;
+}
+.demo-offer-heading > div > span {
+  color: #595959;
+  font-size: 13px;
+}
+.reviewer-demo .candidate-row p,
+.reviewer-demo .candidate-row li {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #595959;
+}
+.reviewer-demo .candidate-row {
+  overflow-wrap: anywhere;
+}
+.reviewer-demo blockquote {
+  margin: 20px 0;
+  padding: 0;
+}
+.reviewer-demo blockquote strong {
+  font-size: 12px;
+}
+.demo-source-links {
+  margin: 20px 0;
+  font-size: 14px;
+}
+.demo-source-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.reviewer-demo .candidate-actions {
+  flex-wrap: wrap;
+}
+.reviewer-demo .button {
+  min-height: 44px;
+}
+@media (max-width: 600px) {
+  .demo-toolbar {
+    align-items: stretch;
+  }
+  .demo-filters {
+    width: 100%;
+    gap: 8px;
+  }
+  .demo-filters .button {
+    flex: 1;
+    padding-inline: 10px;
+  }
+  .demo-offer-heading {
+    align-items: start;
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
   .hero-label,
   .hero h1,

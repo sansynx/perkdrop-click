@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-router";
 import "@fontsource-variable/geist";
 import { BackendProvider } from "../components/backend-provider";
+import { AgentNavigation } from "../components/agent-navigation";
 
 import appCss from "../styles.css?url";
 
@@ -66,7 +67,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <HeadContent />
       </head>
       <body>
-        <BackendProvider>{children}</BackendProvider>
+        <BackendProvider>
+          <AgentNavigation />
+          {children}
+        </BackendProvider>
 
         <Scripts />
       </body>

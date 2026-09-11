@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as ReviewerDemoRouteImport } from './routes/reviewer-demo'
 import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as DropSlugRouteImport } from './routes/drop.$slug'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReviewerDemoRoute = ReviewerDemoRouteImport.update({
+  id: '/reviewer-demo',
+  path: '/reviewer-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SubmitRoute = SubmitRouteImport.update({
@@ -38,12 +44,14 @@ const DropSlugRoute = DropSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/reviewer-demo': typeof ReviewerDemoRoute
   '/submit': typeof SubmitRoute
   '/drop/$slug': typeof DropSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/reviewer-demo': typeof ReviewerDemoRoute
   '/submit': typeof SubmitRoute
   '/drop/$slug': typeof DropSlugRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/reviewer-demo': typeof ReviewerDemoRoute
   '/submit': typeof SubmitRoute
   '/drop/$slug': typeof DropSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/admin' | '/submit' | '/drop/$slug'
+  fullPaths: '/' | '/admin' | '/reviewer-demo' | '/submit' | '/drop/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/submit' | '/drop/$slug'
-  id: '__root__' | '/' | '/admin' | '/submit' | '/drop/$slug'
+  to: '/' | '/admin' | '/reviewer-demo' | '/submit' | '/drop/$slug'
+  id: '__root__' | '/' | '/admin' | '/reviewer-demo' | '/submit' | '/drop/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  ReviewerDemoRoute: typeof ReviewerDemoRoute
   SubmitRoute: typeof SubmitRoute
   DropSlugRoute: typeof DropSlugRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reviewer-demo': {
+      id: '/reviewer-demo'
+      path: '/reviewer-demo'
+      fullPath: '/reviewer-demo'
+      preLoaderRoute: typeof ReviewerDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/submit': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  ReviewerDemoRoute: ReviewerDemoRoute,
   SubmitRoute: SubmitRoute,
   DropSlugRoute: DropSlugRoute,
 }

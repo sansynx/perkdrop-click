@@ -83,6 +83,16 @@ Published the existing server-rendered app publicly on chatgpt.site with its Con
 
 ## Submission requirements and current gaps
 
+### Reviewer access
+
+The reviewer demo route is `/reviewer-demo`. It opens without credential entry and displays the public demo label `AllGas2026`. Three snapshots of actual discovered offers let judges try approval, rejection, reason validation, status filters, and reset. Source text remains explicitly unverified; demo approval is not an endorsement of the offer.
+
+All demo decisions are tab-local and reset on reload. The demo does not write to Convex, reveal the administrator token, publish offers, change trust settings, or start Firecrawl requests. Production administrator authorization remains unchanged.
+
+Optional browser-side WebMCP tools provide fixed public navigation and demo list/decide/reset actions. They use the current `document.modelContext` registration API with abort-based cleanup and graceful fallback to visible controls. No external MCP server or universal agent compatibility is claimed.
+
+Verification on September 11: formatting, TypeScript checks, and all 40 tests passed. The added tests cover isolated decisions, reset, invalid input, navigation restrictions, registration cleanup, and rejection of the public demo credential by production admin functions. Local browser testing confirmed visible reason errors, approval, filters, and native WebMCP list/reject/reset calls. Desktop and 390px mobile layouts were inspected, with no horizontal overflow on mobile. An independent code review found no actionable security or correctness issues in this change.
+
 Checked against the [official event page](https://www.convex.dev/hackathons/all-gas) on September 11, 2026. Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
 
 - [x] Convex backend and Firecrawl integration implemented.
