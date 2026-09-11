@@ -1,92 +1,85 @@
 <p align="center"><img src="public/perkdrop-mark.svg" width="72" height="72" alt="Perkdrop logo"></p>
 <h1 align="center">Perkdrop.click</h1>
-<p align="center">Find free tools, credits, and programs with their eligibility and source links.</p>
-
-[Live website](https://perkdrop-click.sansynx.workers.dev)
+<p align="center">Free tools, credits, and programs—with eligibility, evidence, and original links.</p>
+<p align="center"><a href="https://perkdrop-click.sansynx.workers.dev">Visit Perkdrop</a></p>
 
 ## How it works
 
-Visitors browse the reviewed catalog or submit a public offer URL. Convex canonicalizes tracking URLs and checks for an existing submission before starting extraction. Firecrawl searches four configured categories every three hours and extracts evidence and terms from discovered pages.
+```mermaid
+flowchart TD
+    A["Public URL submissions"] --> C["Deduplicate URLs"]
+    B["Firecrawl search every 3 hours"] --> C
+    C --> D["Extract offer terms and evidence"]
+    D --> E{"Pass explicit trust and safety checks?"}
+    E -->|Yes| G["Publish to live catalog"]
+    E -->|Needs review| F["Administrator review"]
+    F -->|Approved| G
+    G --> H["Scheduled rechecks and expiry"]
+    H -->|Changed or unverifiable| F
+```
 
-Repeated offers merge into the existing review entry. Unknown eligibility, payment terms, and untrusted sources require administrator review. Trust is explicit database configuration, never an implicit domain allowlist. Administrators review evidence and approve or reject batches of up to 20. Approved offers appear through reactive Convex queries.
+Four search categories feed the same intake pipeline. Repeated offer keys merge; uncertain terms and untrusted sources need review. Administrators can review up to 20 offers per batch. No domain is trusted by default, and production contains no demo listings.
 
-Scheduled checks revisit published offers every 12 hours. Changed terms or repeated verification failures hide an offer for review; expired offers leave the public catalog without deleting their history. Public feedback is deduplicated and rate-limited. It is anonymous feedback, not proof of identity or successful redemption.
-
-There are no demo listings in the production UI. An empty catalog means no offers have been published yet.
+Rechecks run in bounded batches every 12 hours. Changed or repeatedly unverifiable offers are hidden pending review; expired offers leave the catalog.
 
 ## Tech stack
 
-- React 19, TanStack Start and TanStack Router for server rendering and navigation.
-- TypeScript, Vite, Geist typography, Phosphor interface icons, and plain CSS.
-- Convex for the database, live queries, moderation, scheduled jobs, and durable workflows.
-- Firecrawl for search and structured offer extraction.
-- Cloudflare Workers for the server-rendered website and static assets.
-- Vitest and convex-test for backend behavior tests. GitHub Actions runs checks and the production build.
+| Layer              | Tools                                                   |
+| ------------------ | ------------------------------------------------------- |
+| Website            | React 19, TanStack Start, TypeScript, Vite              |
+| UI                 | Geist, Phosphor icons, CSS, generated WebP hero         |
+| Backend            | Convex database, live queries, cron jobs, workflows     |
+| Discovery          | Firecrawl search and structured extraction              |
+| Hosting and checks | Cloudflare Workers, Vitest, convex-test, GitHub Actions |
 
-The hero uses generated artwork delivered as lossless WebP. Provider favicons come from the offer's own HTTPS origin when available, with initials when an image fails. An icon is not a trust signal.
+Provider favicons use the offer's HTTPS origin, with initials as fallback. Icons do not establish trust.
 
 ## Run locally
 
-Use Node 22.22.3 or newer and pnpm 11.21.0.
+Use Node 22.22.3+ and pnpm 11.21.0.
 
 ```sh
 pnpm install --frozen-lockfile
 pnpm exec convex dev
 ```
 
-In another terminal, set the public deployment URL in an ignored `.env.local` using `.env.example`, then run:
+Set `VITE_CONVEX_URL` in an ignored `.env.local` following [.env.example](.env.example). In another terminal:
 
 ```sh
 pnpm run dev
 ```
 
-Configure `FIRECRAWL_API_KEY` and `ADMIN_REVIEW_TOKEN` in the selected Convex deployment's environment settings. The administrator token must be at least 32 characters. Never prefix secrets with `VITE_`, paste them into source, or commit local environment files.
+Set `FIRECRAWL_API_KEY` and `ADMIN_REVIEW_TOKEN` (at least 32 characters) in your **Convex deployment**, not the website Worker. Never prefix secrets with `VITE_` or commit them. The admin page holds its token only in memory; backend authorization protects administrative operations.
 
-## Secrets and operations
-
-Firecrawl and administrator credentials belong to **Convex**, where extraction and authorization run. The website Worker does not need those credentials. `VITE_CONVEX_URL` is a public API address, not a secret.
-
-The `/admin` page keeps the entered token in memory, not local storage. Server authorization protects each administrative query and mutation. Do not share the token or browser session. Rotate credentials immediately if exposed.
-
-Discovery runs at 00:00, 03:00, 06:00, and every subsequent three-hour boundary in UTC. Search and intake limits bound spending; failures appear in the administrator activity view. Firecrawl availability and credits still affect discovery. No email or AgentMail service is integrated.
-
-## Validate and deploy
+## Check and deploy
 
 ```sh
 pnpm run check
 pnpm run build
-```
-
-Confirm the intended Convex deployment before deploying backend changes:
-
-```sh
+# Confirm the target deployment before changing the backend.
 pnpm exec convex deploy
 pnpm run deploy
 ```
 
-Deploy the backend first. The frontend uses Cloudflare Workers because it includes server rendering, not a static-only Pages build. `wrangler.jsonc` contains this project's Worker configuration. Use your own account configuration for a fork.
+Deploy backend changes first. Workers hosts the server-rendered app; forks must use their own account configuration in [wrangler.jsonc](wrangler.jsonc).
 
-## Code map
+Routes live in [src/routes](src/routes); ingestion, moderation, discovery, and lifecycle code live in [convex](convex). Tests sit beside the backend modules.
 
-- `src/routes`: catalog, offer details, submission, and administrator pages.
-- `src/components`: shared navigation, resource rows, live pagination, and feedback.
-- `convex/intake.ts` and `convex/lib/intakePolicy.ts`: extraction, validation, deduplication, and publishing.
-- `convex/admin.ts`: protected moderation and discovery status.
-- `convex/discovery.ts`, `convex/revalidation.ts`, and `convex/lifecycle.ts`: discovery, checks, expiry, and cleanup.
-- `convex/schema.ts`: tables and indexes.
+## Operational limits
 
-## Security boundaries and remaining handoff work
+- Discovery depends on Firecrawl availability and credits. Failed jobs and search history are visible in `/admin`.
+- Anonymous feedback is deduplicated and rate-limited, not proof of one person or successful redemption. There is no visitor counter or email integration.
+- Keep credentials private and rotate exposed keys. A passive audit cannot guarantee security.
+- This repository remains private. Verify the event's repository, hosting, video, and submission requirements before entering; building for the event does not mean it has been submitted.
 
-Rate limits and anonymous identifiers limit abuse but cannot establish one-person-one-vote. There is no client-writable visitor counter or analytics SDK. A future count must be recorded server-side and should be described as an estimate.
+## How Codex helped me build this
 
-The current live address is the Workers URL above. Custom-domain ownership and DNS setup require separate verification. A passive scan cannot guarantee the absence of every vulnerability.
+I used Codex to implement the interface, Convex workflows, Firecrawl integration, moderation tools, and tests. It also helped debug mobile layouts, optimize the hero image, review security boundaries, and deploy the app. I directed the product and design decisions and supplied the service credentials.
 
-The repository is private at the owner's request. The [All Gas hackathon](https://www.convex.dev/hackathons/all-gas) specifies submission requirements that differ from this private-repository and Cloudflare-hosting setup. Confirm those requirements, the build log, demo video, and social submission before entering.
+Codex is a development tool, not a runtime dependency. Generated code and extracted offers still need review.
 
-## Built with Codex
+## Hackathon and thanks
 
-Codex helped implement the interface, Convex data model and workflows, Firecrawl integration, moderation tools, tests, asset optimization, and deployment configuration. The project owner directed the design and product decisions and supplied service credentials. Codex is a development tool here, not a runtime dependency. Generated code and extracted offers still need review.
+Built as part of the [All Gas hackathon](https://www.convex.dev/hackathons/all-gas).
 
-## Thanks
-
-Thank you to **Convex, OpenAI, Firecrawl, and AgentMail**, the hosts and sponsors listed on the [All Gas hackathon event page](https://www.convex.dev/hackathons/all-gas). Their sponsorship does not imply endorsement of individual offers in this catalog.
+Thank you to **Convex, OpenAI, Firecrawl, and AgentMail** for hosting and sponsoring the event. Convex and Firecrawl power the app; OpenAI's Codex helped build it. AgentMail is credited as a sponsor, not as an integration.
