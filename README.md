@@ -26,6 +26,12 @@ Rechecks run in bounded batches every 12 hours. Changed or repeatedly unverifiab
 
 ## Tech stack
 
+The website runs in two deployments: Sites serves the public chatgpt.site URL, and Cloudflare Workers serves the workers.dev URL. Both connect to the same production Convex backend. Neither website host runs the discovery cron.
+
+Convex stores submissions, discovery history, extracted candidates, review decisions, and published offers. Its scheduler starts Firecrawl searches every three hours. Firecrawl returns public URLs and extracts offer details; Convex handles deduplication, verification, retries, and publication. The browser subscribes to Convex queries, so approved offers appear without a website redeployment.
+
+The administrator queue reads pending candidates from that same backend. Approval is checked on the server and publishes the offer; rejection keeps it out of the public catalog. A successful search does not mean an offer has been approved.
+
 | Layer              | Tools                                                   |
 | ------------------ | ------------------------------------------------------- |
 | Website            | React 19, TanStack Start, TypeScript, Vite              |
@@ -50,6 +56,8 @@ Set `VITE_CONVEX_URL` in an ignored `.env.local` following [.env.example](.env.e
 ```sh
 pnpm run dev
 ```
+
+For a production build, set `VITE_CONVEX_URL` through the build environment or an ignored `.env.production.local` file. Use your own deployment URL. This address is public and is embedded in browser assets; it is not an authentication credential. Only the blank `.env.example` template belongs in Git. Deployment-specific `.env` files are ignored.
 
 Set `FIRECRAWL_API_KEY` and `ADMIN_REVIEW_TOKEN` (at least 32 characters) in your **Convex deployment**, not the website Worker. Never prefix secrets with `VITE_` or commit them. The admin page holds its token only in memory; backend authorization protects administrative operations.
 
