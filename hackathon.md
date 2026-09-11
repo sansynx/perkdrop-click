@@ -61,15 +61,15 @@ Expanded the discovery interface, offer detail page, submission form, and admini
 
 Implemented Firecrawl discovery and extraction, URL and offer-key deduplication, explicit trust checks, batch moderation, scheduled revalidation, and expiry handling. Registered the workflow component for bounded concurrency and retries (`convex/discovery.ts`, `convex/intake.ts`, `convex/admin.ts`, `convex/revalidation.ts`, `convex/convex.config.ts`).
 
-### 2026-09-11 - 125ee46
+### 2026-09-11 - d8566de
 
 Replaced demo listings with the live Convex catalog and server-rendered route data. Added secure page response headers, optimized hero artwork, and configured GitHub Actions to run formatting, type checks, tests, and production builds (`src/server.ts`, `src/components/live-feed.tsx`, `.github/workflows/checks.yml`). Includes the related frontend commit `02592f9`.
 
-### 2026-09-11 - b6616ad
+### 2026-09-11 - 9ef2a7d
 
 Removed repeated browse links and separated administrator navigation from public submission controls. Fixed checkbox alignment, login helper and error spacing, retry-row wrapping, and excessive discovery-log height (`src/routes/admin.tsx`, `src/styles.css`).
 
-### 2026-09-11 - 14892da
+### 2026-09-11 - bd79488
 
 Added a GitHub-rendered Mermaid overview and specific notes about using Codex to implement, test, and debug the project. Documented runtime secret updates and credited the event sponsors (`README.md`).
 
