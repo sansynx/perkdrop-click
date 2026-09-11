@@ -20,6 +20,8 @@ flowchart TD
 
 Four search categories feed the same intake pipeline. Repeated offer keys merge; uncertain terms and untrusted sources need review. Administrators can review up to 20 offers per batch. No domain is trusted by default, and production contains no demo listings.
 
+Discovery runs independently of the website or repository being public. Finding an offer does not guarantee publication: it must pass the automatic checks or receive administrator approval. Successful searches can therefore add pending candidates while the public catalog remains empty.
+
 Rechecks run in bounded batches every 12 hours. Changed or repeatedly unverifiable offers are hidden pending review; expired offers leave the catalog.
 
 ## Tech stack
@@ -72,7 +74,7 @@ Routes live in [src/routes](src/routes); ingestion, moderation, discovery, and l
 - Discovery depends on Firecrawl availability and credits. Failed jobs and search history are visible in `/admin`.
 - Anonymous feedback is deduplicated and rate-limited, not proof of one person or successful redemption. There is no visitor counter or email integration.
 - Keep credentials private and rotate exposed keys. A passive audit cannot guarantee security.
-- This repository remains private. Verify the event's repository, hosting, video, and submission requirements before entering; building for the event does not mean it has been submitted.
+- This repository is public for the hackathon. Verify hosting, sponsor integrations, video, and submission requirements before entering; building for the event does not mean it has been submitted.
 
 ## How Codex helped me build this
 
@@ -88,5 +90,7 @@ I set the product direction, reviewed the visual changes, and configured the ser
 ## Hackathon and thanks
 
 Built as part of the [All Gas hackathon](https://www.convex.dev/hackathons/all-gas).
+
+See [hackathon.md](hackathon.md) for the build log, submission requirements, and remaining integration and hosting gaps.
 
 Thank you to **Convex, OpenAI, Firecrawl, and AgentMail** for hosting and sponsoring the event. Convex and Firecrawl power the app; OpenAI's Codex helped build it. AgentMail is credited as a sponsor, not as an integration.

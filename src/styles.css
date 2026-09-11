@@ -278,6 +278,9 @@ button:active:not(:disabled),
   line-height: 1.65;
   letter-spacing: -0.25px;
 }
+.hero-browse {
+  margin-top: 28px;
+}
 .collections-section,
 .discovery-section,
 .about-section,
@@ -526,6 +529,7 @@ button:active:not(:disabled),
   font-size: 10px;
 }
 .resource-list {
+  margin-top: 24px;
   border-top: 1px solid var(--line);
 }
 .resource-row {
