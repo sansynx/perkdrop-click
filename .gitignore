@@ -11,3 +11,8 @@ dist-ssr
 .vinxi
 __unconfig*
 todos.json
+.convex/*.zip
+.convex/
+.firecrawl/
+.dev.vars*
+coverage/
