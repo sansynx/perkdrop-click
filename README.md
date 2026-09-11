@@ -1,6 +1,6 @@
 <p align="center"><img src="public/perkdrop-mark.svg" width="72" height="72" alt="Perkdrop logo"></p>
 <h1 align="center">Perkdrop.click</h1>
-<p align="center">Free tools, credits, and programs—with eligibility, evidence, and original links.</p>
+<p align="center">Free tools, credits, and programs with eligibility, evidence, and original links.</p>
 <p align="center"><a href="https://perkdrop-click.sansynx.workers.dev">Visit Perkdrop</a></p>
 
 ## How it works
@@ -51,6 +51,8 @@ pnpm run dev
 
 Set `FIRECRAWL_API_KEY` and `ADMIN_REVIEW_TOKEN` (at least 32 characters) in your **Convex deployment**, not the website Worker. Never prefix secrets with `VITE_` or commit them. The admin page holds its token only in memory; backend authorization protects administrative operations.
 
+Updating these secrets in the deployment settings does not require redeployment. New Firecrawl requests use the updated key. After changing the admin token, reload `/admin` and sign in with the new token. Project defaults do not update existing deployments. Changing the frontend's `VITE_CONVEX_URL` requires rebuilding and deploying the website. See [Convex environment variables](https://docs.convex.dev/production/environment-variables).
+
 ## Check and deploy
 
 ```sh
@@ -74,9 +76,14 @@ Routes live in [src/routes](src/routes); ingestion, moderation, discovery, and l
 
 ## How Codex helped me build this
 
-I used Codex to implement the interface, Convex workflows, Firecrawl integration, moderation tools, and tests. It also helped debug mobile layouts, optimize the hero image, review security boundaries, and deploy the app. I directed the product and design decisions and supplied the service credentials.
+I started with the idea of collecting useful free offers in one place. I used Codex to turn that into a working application, then refined it through screenshots, browser checks, and direct feedback on what felt wrong.
 
-Codex is a development tool, not a runtime dependency. Generated code and extracted offers still need review.
+- Built the catalog, offer details, submission form, and administrator queue with React and TanStack Start. After testing on mobile, we removed repeated browse links, fixed input and error spacing, aligned review checkboxes, and collapsed discovery logs.
+- Connected Firecrawl to Convex with four searches every three hours, URL normalization, offer-key deduplication, bounded retries, and evidence extraction. Added batch moderation so uncertain offers wait for a decision instead of appearing as verified results.
+- Added scheduled offer rechecks and expiry handling, plus tests for duplicate submissions, administrator authorization, publication, feedback limits, and offer lifecycle changes.
+- Converted the generated hero artwork to lossless WebP, reducing its size by about 45%. Set up the Cloudflare deployment and GitHub Actions checks, then verified the deployed admin page at mobile and desktop widths.
+
+I set the product direction, reviewed the visual changes, and configured the service credentials. Codex handled implementation and debugging across the same repository, including the test runs and deployment checks used during each revision.
 
 ## Hackathon and thanks
 
