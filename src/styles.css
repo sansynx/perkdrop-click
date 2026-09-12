@@ -946,6 +946,28 @@ button:active:not(:disabled),
   color: #777;
   margin: 0;
 }
+.email-intake {
+  display: flex;
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--muted-surface);
+  color: var(--orange);
+}
+.email-intake a {
+  color: var(--orange);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.email-intake > svg {
+  flex-shrink: 0;
+}
+.email-intake > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .success-mark {
   display: grid;
   place-items: center;
@@ -1847,17 +1869,20 @@ button:active:not(:disabled),
   flex-wrap: wrap;
 }
 .admin-failures,
-.admin-activity {
+.admin-activity,
+.admin-live {
   margin-top: 32px;
   border-top: 1px solid var(--line);
   padding-top: 24px;
 }
 .admin-failures h2,
-.admin-activity h2 {
+.admin-activity h2,
+.admin-live h2 {
   font-size: 20px;
   margin: 0 0 12px;
 }
-.admin-failures > p {
+.admin-failures > p,
+.admin-live > p {
   color: #626262;
   font-size: 14px;
   line-height: 1.6;
@@ -1870,8 +1895,9 @@ button:active:not(:disabled),
   padding-block: 16px;
   border-bottom: 1px solid var(--line);
 }
-.failed-job .button {
-  white-space: nowrap;
+.admin-live input {
+  width: min(100%, 520px);
+  margin: 16px 0 8px;
 }
 .admin-activity > summary {
   cursor: pointer;

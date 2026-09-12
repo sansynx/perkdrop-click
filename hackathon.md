@@ -9,7 +9,7 @@
 - **Frontend:** Other, TanStack Start on Sites, with a separate Cloudflare
   Workers deployment
 - **Convex deployment:** https://gregarious-canary-249.convex.cloud
-- **Components:** @convex-dev/workflow
+- **Components:** @convex-dev/workflow, @agentmail/convex
 - **Convex features:** schema, tables, indexes, full-text search, queries,
   mutations, actions, crons, scheduled functions, realtime queries
 - **Auth:** Other, server-validated administrator token; anonymous public
@@ -17,7 +17,7 @@
 - **AI models:** none explicitly configured; Firecrawl performs structured
   extraction
 - **Started:** 2026-09-09T14:51:40Z
-- **Last updated:** 2026-09-11
+- **Last updated:** 2026-09-12
 - **Agent access:** Browser-side WebMCP for public navigation and isolated demo
   review.
 
@@ -46,7 +46,8 @@ repository is public. Making GitHub public does not start or stop searches.
 5. [convex/intake.ts](convex/intake.ts) publishes approved candidates.
    Administrators can also approve reviewed candidates through
    [convex/admin.ts](convex/admin.ts). Scheduled revalidation and expiry
-   handling maintain the published catalog.
+   handling maintain the published catalog. Forwarded AgentMail messages enter
+   the same intake path through [convex/email.ts](convex/email.ts).
 
 No source is trusted by default. An empty public catalog can therefore coexist
 with successful discovery. During the September 11 inspection, the database had
@@ -56,12 +57,64 @@ links.
 
 ## Implementation evidence
 
+### Email-to-catalog sequence
+
+Steps are numbered by Mermaid. Receipt delivery and verification run separately;
+receiving an email does not approve its offer.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Sender
+    participant Mail as AgentMail
+    participant Backend as Convex
+    participant Crawler as Firecrawl
+    actor Admin as Administrator
+    Sender->>Mail: Forward a public announcement
+    Mail->>Backend: POST signed message.received webhook
+    Backend->>Backend: Verify Svix signature and deduplicate event ID
+    Backend->>Backend: Require the configured inbox and a valid sender
+    Backend->>Backend: Extract up to five URLs and enforce intake limits
+    Backend->>Backend: Reuse duplicate jobs or queue new workflows
+    par Receipt delivery, within receipt limits
+        Backend->>Mail: Reply from a parent action
+        opt Transient delivery failure
+            Backend->>Mail: Retry, at most three attempts total
+        end
+        Mail-->>Sender: Link receipt, not publication confirmation
+    and Verification for new jobs
+        Backend->>Crawler: Extract original offer page
+        Crawler-->>Backend: Terms, eligibility, claim URL, and evidence
+        Backend->>Backend: Deduplicate offer key and assess publication policy
+        opt Human review required
+            Backend-->>Admin: Candidate with evidence and review reasons
+            Admin->>Backend: Authorized decision and reason
+        end
+        alt Approved and unexpired
+            Backend->>Backend: Upsert published offer
+            Backend-->>Sender: Catalog live query receives the offer
+        else Pending or rejected
+            Backend->>Backend: Keep candidate private
+        end
+    end
+    opt Later expiry, changed terms, or administrator takedown
+        Backend->>Backend: Remove publication and retain review history
+        Backend-->>Sender: Catalog live query removes the offer
+    end
+```
+
+Discovery and website submissions enter the same URL intake path without going
+through AgentMail. Rechecks select up to 25 due offers every two hours, with a
+12-hour delay per selected offer. This is bounded throughput, not a guarantee
+that an arbitrarily large catalog is checked daily.
+
 | Capability         | Repository evidence                                                                            | Scope                                                                        |
 | ------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | Persistent backend | [convex/schema.ts](convex/schema.ts)                                                           | Stores intake, candidates, publications, discovery runs, and review history. |
 | Durable processing | [convex/convex.config.ts](convex/convex.config.ts), [convex/workflows.ts](convex/workflows.ts) | Coordinates background work and retries with the Convex workflow component.  |
+| Email intake       | [convex/email.ts](convex/email.ts), [convex/http.ts](convex/http.ts)                           | Forwards claim URLs from AgentMail into the existing intake workflow.        |
 | Public catalog     | [src/components/live-feed.tsx](src/components/live-feed.tsx)                                   | Reads real Convex data rather than demo listings.                            |
-| Moderation         | [convex/admin.ts](convex/admin.ts), [src/routes/admin.tsx](src/routes/admin.tsx)               | Server-authorized review, batch decisions, and operational status.           |
+| Moderation         | [convex/admin.ts](convex/admin.ts), [src/routes/admin.tsx](src/routes/admin.tsx)               | Server-authorized review, batch decisions, takedown, and operational status. |
 | Lifecycle          | [convex/revalidation.ts](convex/revalidation.ts), [convex/lifecycle.ts](convex/lifecycle.ts)   | Rechecks published offers and handles expiry.                                |
 | Automated checks   | [.github/workflows/checks.yml](.github/workflows/checks.yml)                                   | Runs formatting, type checks, tests, and a production build.                 |
 
@@ -79,9 +132,9 @@ traced the empty catalog to pending moderation rather than replacing missing
 results with mock offers.
 
 Codex helped inspect diffs, run checks, optimize the hero asset, and prepare
-deployment configuration. Convex and Firecrawl are implemented in the product.
-Direct OpenAI model calls and AgentMail are not currently implemented; Codex was
-used during development.
+deployment configuration. Convex, Firecrawl, and AgentMail are implemented in
+the product. Direct OpenAI model calls are not; Codex was used during
+development.
 
 ## Log
 
@@ -146,6 +199,40 @@ the package excluded local environment files. Formatting, type checking, and all
 33 tests passed before publication. This establishes hosting status, not
 completion of the remaining submission requirements.
 
+### 2026-09-11 - AgentMail intake and catalog fixtures
+
+Added inbound AgentMail webhooks, forwarded-link intake, and receipt mail.
+Expired and changed offers now leave `publishedOffers`, batch approval skips
+expired candidates, administrators can unpublish live perks, curated brand logos
+are preferred, and rechecks run 25 due offers every two hours.
+
+### 2026-09-12 - Integration audit
+
+Reviewed the email integration, publication lifecycle, administrator controls,
+frontend changes, and local handoff claims against the code. Added regression
+coverage for forwarded message links, inbox isolation, receipt retries and
+limits, discovery self-links, and submission status after takedown.
+
+The audit corrected cases where a forwarded body lost its links, a blocked URL
+rolled back a discovery batch, and a removed offer still reported publication.
+Receipt errors now have bounded retries for transient failures; authorization
+failures stop without a second send attempt. Optional email availability no
+longer needs to succeed for the URL submission form to remain usable.
+
+This entry describes repository changes. It does not claim a new production
+deployment or a live inbox delivery test.
+
+The audit also disabled automatic loading of local `.env` secrets into the
+Cloudflare preview build. Backend credentials belong in Convex; release
+artifacts must not contain local secret files.
+
+Verification for this audit: 58 tests passed with `pnpm run test`, both project
+and Convex TypeScript checks passed, and `pnpm run build` completed. Prettier
+and the Git whitespace check passed for the intended project files. The
+production dependency audit reported no known vulnerabilities. Both numbered
+Mermaid diagrams rendered, and browser checks covered the submission form,
+administrator sign-in validation, and a 390px mobile layout.
+
 ## Submission requirements and current gaps
 
 ### Reviewer access
@@ -196,8 +283,8 @@ Checked against the
 - [x] Public repository, made public with the owner's approval.
 - [x] Public app on `convex.site` or `chatgpt.site`. Sites confirmed the public
       chatgpt.site deployment on September 11.
-- [ ] Sponsor-stack product usage. Direct OpenAI functionality and AgentMail
-      integration are absent; Codex was used during development.
+- [x] AgentMail inbound intake, webhook, and receipts. Direct OpenAI model calls
+      in the product remain absent; Codex was used during development.
 - [ ] Confirm Luma registration and participant eligibility, including age 18+,
       location restrictions, and original work begun after the event's August 25
       start.
@@ -208,14 +295,12 @@ Checked against the
 
 ## Product work before the demo
 
+- Deploy the audited backend and website changes, then verify a real forwarded
+  announcement and its receipt. This audit did not send live email.
 - Review pending candidates against their sources and publish only eligible
   offers. Discovery already runs; pending candidates are not public listings.
-- Correct sparse pagination around hidden offers and verify time-based expiry
-  updates in open pages.
-- Size recheck throughput for the expected catalog; the current job processes up
-  to 10 due offers per 12-hour run.
 - Keep sponsor integration claims factual. Do not represent the current project
-  as submitted or fully compliant.
+  as submitted or fully compliant. Direct OpenAI product calls are still absent.
 
 ## Hackathon and thanks
 

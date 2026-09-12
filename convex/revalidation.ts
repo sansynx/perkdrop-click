@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { offerValidator } from "./intake";
 import { assess, offerKey } from "./lib/intakePolicy";
+import { removePublication } from "./lib/publications";
 import { workflow } from "./workflows";
 
 export const runScheduled = internalMutation({
@@ -16,7 +17,7 @@ export const runScheduled = internalMutation({
       .withIndex("by_status_recheck", (q) =>
         q.eq("status", "active").lte("recheckAfter", now),
       )
-      .take(10);
+      .take(25);
     for (const row of rows) {
       await ctx.db.patch(row._id, { recheckAfter: now + 12 * 3600000 });
       await workflow.start(
@@ -76,7 +77,9 @@ export const finish = internalMutation({
       consecutiveFailures: 0,
       status: expired ? "expired" : changed ? "needs_recheck" : "active",
       updatedAt: Date.now(),
+      ...(expired ? { archivedAt: Date.now() } : {}),
     });
+    if (expired || changed) await removePublication(ctx, resource._id);
     if (changed && candidate && details) {
       const {
         isOffer: _isOffer,
@@ -130,6 +133,7 @@ export const fail = internalMutation({
       updatedAt: Date.now(),
     });
     if (failures >= 3) {
+      await removePublication(ctx, resource._id);
       const details = await ctx.db
         .query("candidateDetails")
         .withIndex("by_resource", (q) => q.eq("resourceId", resource._id))

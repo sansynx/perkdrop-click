@@ -59,7 +59,7 @@ async function fixture() {
     reason: "Checked original offer and eligibility",
   });
   const resource = await t.run((ctx) => ctx.db.query("resources").first());
-  return { t, resource: resource!, candidate: candidate! };
+  return { t, resource: resource!, candidate: candidate!, jobId };
 }
 it("persists anonymous feedback once and reads bounded aggregate counts", async () => {
   const { t, resource } = await fixture();
@@ -116,6 +116,9 @@ it("hides expired detail pages before the cron and archives them without deletio
   expect(await t.run((ctx) => ctx.db.get(resource._id))).toMatchObject({
     status: "expired",
   });
+  expect(
+    await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
+  ).toHaveLength(0);
 });
 it("revalidates unchanged offers idempotently", async () => {
   const { t, resource } = await fixture();
@@ -146,6 +149,9 @@ it("queues changed terms and republishes the same resource after review", async 
     finalUrl: offer.claimUrl,
   });
   expect(await t.query(api.catalog.get, { slug: resource.slug })).toBeNull();
+  expect(
+    await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
+  ).toHaveLength(0);
   expect(await t.run((ctx) => ctx.db.get(candidate._id))).toMatchObject({
     status: "pending",
     valueText: "$50",
@@ -183,6 +189,9 @@ it("keeps temporary failures visible but queues review after three failed checks
   expect(await t.run((ctx) => ctx.db.get(candidate._id))).toMatchObject({
     status: "pending",
   });
+  expect(
+    await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
+  ).toHaveLength(0);
 });
 it("reserves due rechecks once and clears only expired rate buckets", async () => {
   const { t, resource } = await fixture();
@@ -214,4 +223,116 @@ it("rejects crawler loops back into Perkdrop", async () => {
       anonymousId: "visitor-identifier-001",
     }),
   ).rejects.toThrow("original offer page");
+  await expect(
+    t.mutation(api.submissions.create, {
+      url: "https://perkdrop-click.sanathr106.chatgpt.site/drop/example",
+      anonymousId: "visitor-identifier-001",
+    }),
+  ).rejects.toThrow("original offer page");
+});
+
+it("approves the rest of a batch when one queued offer has expired", async () => {
+  const t = convexTest(schema, modules);
+  workflow.register(t);
+  async function pending(url: string, title: string) {
+    const jobId = await t.run((ctx) =>
+      ctx.db.insert("intakeJobs", {
+        canonicalUrl: url,
+        status: "queued",
+        message: "",
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    );
+    await t.mutation(internal.intake.finish, {
+      jobId,
+      url,
+      finalUrl: url,
+      offer: { ...offer, title, claimUrl: url },
+      markdown: offer.evidence,
+    });
+    return (await t.run((ctx) =>
+      ctx.db
+        .query("resourceCandidates")
+        .filter((q) => q.eq(q.field("title"), title))
+        .first(),
+    ))!;
+  }
+  const live = await pending("https://example.com/live", "Live credits");
+  const expired = await pending(
+    "https://example.com/expired",
+    "Expired credits",
+  );
+  await t.run(async (ctx) => {
+    const details = await ctx.db
+      .query("candidateDetails")
+      .withIndex("by_candidate", (q) => q.eq("candidateId", expired._id))
+      .unique();
+    await ctx.db.patch(details!._id, { expiresAt: Date.now() - 1 });
+  });
+  expect(
+    await t.mutation(api.admin.decide, {
+      token,
+      ids: [live._id, expired._id],
+      decision: "approved",
+      reason: "Checked original offer and eligibility",
+    }),
+  ).toBe(2);
+  expect(await t.run((ctx) => ctx.db.get(live._id))).toMatchObject({
+    status: "approved",
+  });
+  expect(await t.run((ctx) => ctx.db.get(expired._id))).toMatchObject({
+    status: "rejected",
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("resources").collect()),
+  ).toHaveLength(1);
+  expect(
+    await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
+  ).toHaveLength(1);
+});
+
+it("unpublishes an active offer and removes it from the live catalog", async () => {
+  const { t, resource, jobId } = await fixture();
+  await expect(
+    t.mutation(api.admin.unpublish, {
+      token: "wrong-token-that-is-long-enough-to-compare",
+      resourceId: resource._id,
+      reason: "Claim page now requires payment",
+    }),
+  ).rejects.toThrow("Administrator access required");
+  await t.mutation(api.admin.unpublish, {
+    token,
+    resourceId: resource._id,
+    reason: "Claim page now requires payment",
+  });
+  expect(await t.query(api.catalog.get, { slug: resource.slug })).toBeNull();
+  expect(await t.query(api.submissions.status, { id: jobId })).toMatchObject({
+    status: "rejected",
+  });
+  expect(await t.run((ctx) => ctx.db.get(resource._id))).toMatchObject({
+    status: "archived",
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
+  ).toHaveLength(0);
+});
+
+it("rechecks more than ten due offers in one scheduled run", async () => {
+  const { t, resource } = await fixture();
+  await t.run(async (ctx) => {
+    const current = await ctx.db.get(resource._id);
+    await ctx.db.patch(resource._id, { recheckAfter: 0 });
+    for (let i = 0; i < 10; i++) {
+      const { _id, _creationTime, ...fields } = current!;
+      void _id;
+      void _creationTime;
+      await ctx.db.insert("resources", {
+        ...fields,
+        slug: `${fields.slug}-${i}`,
+        recheckAfter: 0,
+      });
+    }
+  });
+  expect(await t.mutation(internal.revalidation.runScheduled, {})).toBe(11);
 });

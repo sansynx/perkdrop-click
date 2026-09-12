@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, createFileRoute } from "@tanstack/react-router";
+import { CatchBoundary, Link, createFileRoute } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
@@ -7,6 +7,7 @@ import {
   LinkSimple,
   Globe,
   ListChecks,
+  EnvelopeSimple,
 } from "@phosphor-icons/react";
 import { SiteHeader, SiteFooter } from "../components/site-chrome";
 import { backend } from "../lib/convex-client";
@@ -92,6 +93,7 @@ function SubmitPage() {
                   </p>
                 </div>
               </div>
+              <EmailIntake />
             </div>
           </div>
           <div className="submission-panel">
@@ -179,6 +181,37 @@ function SubmitPage() {
         </div>
       </main>
       <SiteFooter />
+    </div>
+  );
+}
+
+function EmailIntake() {
+  if (!backend) return null;
+  return (
+    <CatchBoundary
+      getResetKey={() => "email-intake"}
+      errorComponent={() => null}
+    >
+      <ConfiguredEmailIntake />
+    </CatchBoundary>
+  );
+}
+
+function ConfiguredEmailIntake() {
+  const address = useQuery(api.email.intakeAddress);
+  if (!address) return null;
+  return (
+    <div className="email-intake">
+      <EnvelopeSimple size={20} />
+      <div>
+        <strong>Or forward a public announcement</strong>
+        <p>
+          Forward public announcements only to{" "}
+          <a href={`mailto:${address}`}>{address}</a>. Do not include private
+          codes or credentials. We pull public claim links, queue them for
+          review, and reply with a receipt.
+        </p>
+      </div>
     </div>
   );
 }

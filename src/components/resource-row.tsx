@@ -14,6 +14,7 @@ export function ProviderMark({ drop }: { drop: Drop }) {
           src={drop.logoUrl}
           alt=""
           loading="lazy"
+          decoding="async"
           referrerPolicy="no-referrer"
           width="24"
           height="24"

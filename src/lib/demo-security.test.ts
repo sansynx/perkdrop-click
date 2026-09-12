@@ -30,6 +30,12 @@ it("rejects the public demo credential at production admin boundaries", async ()
       reason: "Demo attempt",
     }),
   ).rejects.toThrow("Administrator access required");
+  await expect(
+    t.query(api.admin.liveOffers, {
+      token: DEMO_CREDENTIAL,
+      paginationOpts: { cursor: null, numItems: 10 },
+    }),
+  ).rejects.toThrow("Administrator access required");
   expect(
     await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
   ).toHaveLength(0);

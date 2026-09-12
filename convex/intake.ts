@@ -10,7 +10,7 @@ import {
   assess,
   canonicalUrl,
   offerKey,
-  sourceFavicon,
+  resolveProviderLogo,
   safeRewardImage,
 } from "./lib/intakePolicy";
 
@@ -153,7 +153,11 @@ export const extract = internalAction({
       },
       markdown: String(page.markdown).slice(0, 150000),
       finalUrl: canonicalUrl(page.metadata?.url ?? args.url),
-      logoUrl: sourceFavicon(page.metadata?.favicon, string("claimUrl", 2048)),
+      logoUrl: resolveProviderLogo(
+        string("claimUrl", 2048),
+        string("provider", 100),
+        page.metadata?.favicon,
+      ),
       ...(safeRewardImage(page.metadata?.ogImage)
         ? { imageUrl: safeRewardImage(page.metadata?.ogImage) }
         : {}),
@@ -183,8 +187,12 @@ export async function publish(
     .query("providers")
     .withIndex("by_slug", (q) => q.eq("slug", providerSlug))
     .unique();
+  const logoUrl = resolveProviderLogo(
+    claimUrl,
+    candidate.provider,
+    details?.logoUrl,
+  );
   if (!provider) {
-    const logoUrl = sourceFavicon(details?.logoUrl, claimUrl);
     const id = await ctx.db.insert("providers", {
       name: candidate.provider,
       slug: providerSlug,
@@ -192,6 +200,13 @@ export async function publish(
       createdAt: Date.now(),
     });
     provider = await ctx.db.get(id);
+  } else if (
+    logoUrl &&
+    (!provider.logoUrl ||
+      (provider.logoUrl.includes("/favicon.ico") &&
+        !logoUrl.includes("/favicon.ico")))
+  ) {
+    await ctx.db.patch(provider._id, { logoUrl });
   }
   const now = Date.now();
   const fields = {
@@ -392,7 +407,11 @@ export const finish = internalMutation({
       createdAt: now,
     });
     await ctx.db.insert("candidateDetails", {
-      logoUrl: sourceFavicon(args.logoUrl, args.offer.claimUrl),
+      logoUrl: resolveProviderLogo(
+        args.offer.claimUrl,
+        args.offer.provider,
+        args.logoUrl,
+      ),
       candidateId,
       jobId: args.jobId,
       reasons: review.reasons,

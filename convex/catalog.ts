@@ -2,6 +2,7 @@ import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import { providerLogo } from "./lib/intakePolicy";
 const dropValidator = v.object({
   resourceId: v.id("resources"),
   requiresApplication: v.boolean(),
@@ -27,21 +28,30 @@ const dropValidator = v.object({
   claimUrl: v.string(),
   imageUrl: v.optional(v.string()),
 });
-async function display(ctx: QueryCtx, row: Doc<"resources">) {
-  const provider = await ctx.db.get(row.providerId);
-  const published = await ctx.db
-    .query("publishedOffers")
-    .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
-    .unique();
-  const version = await ctx.db
-    .query("resourceVersions")
-    .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
-    .order("desc")
-    .first();
-  const source = await ctx.db
-    .query("resourceSources")
-    .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
-    .first();
+async function display(
+  ctx: QueryCtx,
+  row: Doc<"resources">,
+  published?: Doc<"publishedOffers"> | null,
+) {
+  const claimUrl = row.resolvedClaimUrl ?? row.originalClaimUrl ?? "";
+  const [provider, publishedRow, version, source] = await Promise.all([
+    ctx.db.get(row.providerId),
+    published === undefined
+      ? ctx.db
+          .query("publishedOffers")
+          .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
+          .unique()
+      : Promise.resolve(published),
+    ctx.db
+      .query("resourceVersions")
+      .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
+      .order("desc")
+      .first(),
+    ctx.db
+      .query("resourceSources")
+      .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
+      .first(),
+  ]);
   return {
     resourceId: row._id,
     requiresApplication: row.requiresApplication,
@@ -49,7 +59,7 @@ async function display(ctx: QueryCtx, row: Doc<"resources">) {
     slug: row.slug,
     provider: provider?.name ?? "Independent provider",
     providerMark: (provider?.name ?? "P").slice(0, 2).toUpperCase(),
-    logoUrl: provider?.logoUrl ?? "",
+    logoUrl: provider?.logoUrl ?? providerLogo(claimUrl, provider?.name) ?? "",
     title: row.title,
     description: row.description,
     value: row.valueText ?? "See offer",
@@ -63,8 +73,8 @@ async function display(ctx: QueryCtx, row: Doc<"resources">) {
     claimed: `${row.claimedCount ?? 0} claimed`,
     confirmed: `${row.confirmedCount ?? 0} community confirmations`,
     requiresCard: row.requiresCard,
-    claimUrl: row.resolvedClaimUrl ?? "",
-    ...(published?.imageUrl ? { imageUrl: published.imageUrl } : {}),
+    claimUrl,
+    ...(publishedRow?.imageUrl ? { imageUrl: publishedRow.imageUrl } : {}),
     ...(row.expiresAt
       ? {
           expires: `Ends ${new Date(row.expiresAt).toISOString().slice(0, 10)}`,
@@ -122,16 +132,20 @@ export const page = query({
     const resources = await Promise.all(
       result.page.map((row) => ctx.db.get(row.resourceId)),
     );
-    const rows = await Promise.all(
-      resources
-        .filter(
-          (row): row is Doc<"resources"> =>
-            row !== null &&
-            row.status === "active" &&
-            (!row.expiresAt || row.expiresAt > Date.now()),
-        )
-        .map((row) => display(ctx, row)),
-    );
+    const rows = (
+      await Promise.all(
+        result.page.map((published, index) => {
+          const row = resources[index];
+          if (
+            !row ||
+            row.status !== "active" ||
+            (row.expiresAt && row.expiresAt <= Date.now())
+          )
+            return null;
+          return display(ctx, row, published);
+        }),
+      )
+    ).filter((row) => row !== null);
     return {
       page: rows,
       continueCursor: result.continueCursor,

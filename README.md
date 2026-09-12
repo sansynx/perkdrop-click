@@ -6,22 +6,48 @@
 ## How it works
 
 ```mermaid
-flowchart TD
-    A["Public URL submissions"] --> C["Deduplicate URLs"]
-    B["Firecrawl search every 3 hours"] --> C
-    C --> D["Extract offer terms and evidence"]
-    D --> E{"Pass explicit trust and safety checks?"}
-    E -->|Yes| G["Publish to live catalog"]
-    E -->|Needs review| F["Administrator review"]
-    F -->|Approved| G
-    G --> H["Scheduled rechecks and expiry"]
-    H -->|Changed or unverifiable| F
+sequenceDiagram
+    autonumber
+    actor Visitor
+    participant Mail as AgentMail
+    participant Backend as Convex
+    participant Crawler as Firecrawl
+    actor Admin as Administrator
+    alt Website submission
+        Visitor->>Backend: Submit a public offer URL
+    else Forwarded announcement
+        Visitor->>Mail: Forward a public offer email
+        Mail->>Backend: Signed inbound webhook
+        Backend->>Backend: Verify signature, event ID, and inbox
+    else Scheduled discovery
+        Backend->>Crawler: Search four topics every 3 hours
+        Crawler-->>Backend: Up to five links per topic
+    end
+    Backend->>Backend: Normalize URLs and enforce shared limits
+    alt URL already received
+        Backend-->>Visitor: Reuse existing submission status
+    else New URL
+        Backend->>Crawler: Extract terms and source evidence
+        Crawler-->>Backend: Structured candidate
+        Backend->>Backend: Match offer key and assess trust and terms
+        opt Candidate needs human review
+            Backend-->>Admin: Show evidence and review reasons
+            Admin->>Backend: Approve or reject with private authorization
+        end
+        alt Approved and unexpired
+            Backend->>Backend: Publish the offer
+            Backend-->>Visitor: Live query updates the catalog
+        else Pending or rejected
+            Backend->>Backend: Keep the offer out of the catalog
+        end
+    end
 ```
 
 - Four search categories feed one intake pipeline.
 - Matching offer keys merge to reduce duplicates.
 - Untrusted sources and uncertain terms require review.
-- Administrators can review up to 20 offers per batch.
+- Administrators can review up to 20 offers per batch, and unpublish a live
+  perk.
 - No domain is trusted by default. The public catalog contains no demo listings.
 
 Discovery does not depend on the website or repository being public.
@@ -30,8 +56,10 @@ Finding an offer does not guarantee publication. It must pass automatic checks
 or receive administrator approval. Successful searches can add pending
 candidates while the public catalog remains empty.
 
-Rechecks run in bounded batches every 12 hours. Changed or repeatedly
-unverifiable offers are hidden pending review; expired offers leave the catalog.
+Rechecks select up to 25 due offers every two hours. Each selected offer becomes
+due again after 12 hours; a large backlog can delay that schedule. Changed or
+repeatedly unverifiable offers are hidden pending review; expired offers leave
+the catalog.
 
 ## Tech stack
 
@@ -40,9 +68,12 @@ unverifiable offers are hidden pending review; expired offers leave the catalog.
 - **Sites and Cloudflare Workers** host two versions of the same website,
   connected to one production backend.
 - **Convex** stores submissions, candidates, review history, and published
-  offers. It runs the discovery cron every three hours.
+  offers. It runs discovery every three hours and rechecks live offers every two
+  hours.
 - **Firecrawl** searches public pages and extracts offer details. Convex then
   deduplicates, verifies, and routes candidates for publication or review.
+- **AgentMail** accepts forwarded perk emails, queues public claim links through
+  the same intake path, and sends an HTML receipt that names those links.
 - **Live queries** update the browser when approved offers change. No website
   redeployment is needed for new listings.
 
@@ -55,12 +86,14 @@ offer; rejection keeps it out of the public catalog.
 | UI           | Geist, Phosphor icons, CSS, generated WebP hero     |
 | Backend      | Convex database, live queries, cron jobs, workflows |
 | Discovery    | Firecrawl search and structured extraction          |
+| Email intake | AgentMail inbound webhooks and receipts             |
 | Hosting      | Sites and Cloudflare Workers                        |
 | Agent access | Browser-side WebMCP, where supported                |
 | Checks       | Vitest, convex-test, GitHub Actions                 |
 
-Provider favicons use the offer's HTTPS origin, with initials as fallback. Icons
-do not establish trust.
+Provider logos use curated Simple Icons marks when the claim host is known, then
+the offer's HTTPS origin favicon, with initials as fallback. Icons do not
+establish trust.
 
 ## Try the reviewer demo
 
@@ -124,12 +157,18 @@ pnpm run dev
 
 ### Configuration
 
-| Setting              | Where to configure it                                                    |
-| -------------------- | ------------------------------------------------------------------------ |
-| `VITE_CONVEX_URL`    | Local or production build environment. Public backend URL, not a secret. |
-| `FIRECRAWL_API_KEY`  | Convex deployment secret.                                                |
-| `ADMIN_REVIEW_TOKEN` | Convex deployment secret, at least 32 characters.                        |
-| `DISCOVERY_ENABLED`  | Set to `true` in Convex to enable scheduled discovery.                   |
+| Setting                    | Where to configure it                                                                              |
+| -------------------------- | -------------------------------------------------------------------------------------------------- |
+| `VITE_CONVEX_URL`          | Local or production build environment. Public backend URL, not a secret.                           |
+| `FIRECRAWL_API_KEY`        | Convex deployment secret.                                                                          |
+| `ADMIN_REVIEW_TOKEN`       | Convex deployment secret, at least 32 characters.                                                  |
+| `DISCOVERY_ENABLED`        | Set to `true` in Convex to enable scheduled discovery.                                             |
+| `AGENTMAIL_API_KEY`        | Convex deployment secret for sending receipts.                                                     |
+| `AGENTMAIL_WEBHOOK_SECRET` | Convex deployment secret. Svix secret from the AgentMail dashboard.                                |
+| `AGENTMAIL_INTAKE_ADDRESS` | Public inbox address shown on `/submit`, for example `drops@…`.                                    |
+| `PUBLIC_SITE_URL`          | HTTPS website origin used for links in receipt emails.                                             |
+| `CONVEX_SITE_URL`          | Convex supplies this HTTP origin for the receipt logo.                                             |
+| `AGENTMAIL_BASE_URL`       | Optional AgentMail API endpoint for a supported region. Defaults to `https://api.agentmail.to/v0`. |
 
 For production, supply your backend URL through the build environment or ignored
 `.env.production.local`. It is embedded in browser assets.
@@ -139,6 +178,11 @@ environment files are ignored.
 
 Never prefix secrets with `VITE_` or commit them. The admin page keeps its token
 in memory; the backend authorizes every administrative operation.
+
+The Vite configuration disables Cloudflare's automatic `.env` import into
+preview bindings. Backend keys must stay in Convex, not in website build output.
+See
+[Cloudflare's secret-loading controls](https://developers.cloudflare.com/workers/configuration/secrets/).
 
 ### When configuration changes
 
@@ -151,6 +195,32 @@ in memory; the backend authorizes every administrative operation.
 
 See
 [Convex environment variables](https://docs.convex.dev/production/environment-variables).
+
+### Set up email intake
+
+1. Create a dedicated AgentMail inbox and set its address in
+   `AGENTMAIL_INTAKE_ADDRESS` on the target Convex deployment.
+2. Register `https://<deployment>.convex.site/agentmail/webhook` for
+   `message.received` events. Restrict the webhook to that inbox.
+3. Set the API key, webhook signing secret, and `PUBLIC_SITE_URL` in Convex.
+4. Deploy the backend before the frontend. Forward a public announcement and
+   check the receipt, intake job, and review queue.
+
+The webhook checks Svix signatures and deduplicates event IDs. Intake accepts
+only the configured inbox and extracts up to five public URLs from each message.
+Website and email submissions share the domain and global intake caps.
+
+Receipts confirm receipt of a link, not approval. A parent Convex action sends
+them, with up to three attempts for network errors, HTTP 429, or server errors.
+Permanent failures appear in Convex function logs. Receipt limits allow five per
+sender per hour and 200 globally per day, including duplicate submissions.
+Delivery after an ambiguous network failure is not guaranteed to be exactly
+once.
+
+Forward public announcements only. Do not send passwords, private invitations,
+or personal access links. AgentMail and its private Convex component retain
+email content; Perkdrop does not expose an inbox-reading API to website
+visitors.
 
 ## Check and deploy
 
@@ -179,7 +249,7 @@ lifecycle code live in [convex](convex). Tests sit beside the backend modules.
 - Discovery depends on Firecrawl availability and credits. Failed jobs and
   search history are visible in `/admin`.
 - Anonymous feedback is deduplicated and rate-limited, not proof of one person
-  or successful redemption. There is no visitor counter or email integration.
+  or successful redemption. There is no visitor counter.
 - Keep credentials private and rotate exposed keys. A passive audit cannot
   guarantee security.
 
@@ -216,5 +286,5 @@ See [hackathon.md](hackathon.md) for the build log, submission requirements, and
 remaining integration and hosting gaps.
 
 Thank you to **Convex, OpenAI, Firecrawl, and AgentMail** for hosting and
-sponsoring the event. Convex and Firecrawl power the app; OpenAI's Codex helped
-build it. AgentMail is credited as a sponsor, not as an integration.
+sponsoring the event. Convex, Firecrawl, and AgentMail power the running app.
+OpenAI's Codex helped build it.

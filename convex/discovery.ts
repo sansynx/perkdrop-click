@@ -3,7 +3,7 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { workflow } from "./workflows";
-import { canonicalUrl } from "./lib/intakePolicy";
+import { canonicalUrl, isPerkdropHost } from "./lib/intakePolicy";
 import { enqueueIntake } from "./submissions";
 
 const defaults = [
@@ -137,6 +137,7 @@ export const enqueue = internalMutation({
       duplicates = 0,
       limited = 0;
     for (const url of [...new Set(urls)].slice(0, 5)) {
+      if (isPerkdropHost(new URL(url).hostname)) continue;
       const result = await enqueueIntake(ctx, url, undefined, runId);
       if (!result) limited++;
       else if (result.duplicate) duplicates++;

@@ -106,6 +106,7 @@ it("merges exact offers, preserves variants, and publishes approvals once", asyn
     paginationOpts: { cursor: null, numItems: 5 },
   });
   expect(page.page[0].claimUrl).toBe(offer.claimUrl);
+  expect(page.page[0].logoUrl).toContain("simpleicons.org/resend");
   expect(
     await t.run((ctx) => ctx.db.query("resourceSources").collect()),
   ).toHaveLength(2);

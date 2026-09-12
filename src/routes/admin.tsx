@@ -325,6 +325,7 @@ function AdminPage() {
             </div>
           </>
         )}
+        {result && <LiveCatalog token={token} />}
         {result && <FailedJobs token={token} />}
         {result && (
           <details className="admin-activity">
@@ -337,6 +338,94 @@ function AdminPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function LiveCatalog({ token }: { token: string }) {
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const offers = useQuery(api.admin.liveOffers, {
+    token,
+    paginationOpts: { cursor, numItems: 10 },
+  });
+  async function unpublish(resourceId: Id<"resources">) {
+    if (!backend) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.unpublish, {
+        token,
+        resourceId,
+        reason,
+      });
+      setReason("");
+    } catch {
+      setError(
+        "Takedown was not saved. Check the reason and confirm the offer is still live.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="admin-live">
+      <h2>Live catalog</h2>
+      <p>
+        Remove a published perk immediately if the claim link is broken,
+        fraudulent, or no longer free.
+      </p>
+      {!offers && <p role="status">Loading published offers…</p>}
+      {offers?.page.map((item) => (
+        <div className="failed-job" key={item.resourceId}>
+          <div className="candidate-copy">
+            <p>
+              {item.provider} · {item.title}
+            </p>
+            <p>{item.claimUrl || item.slug}</p>
+          </div>
+          <button
+            className="button"
+            disabled={busy || reason.trim().length < 8}
+            onClick={() => void unpublish(item.resourceId)}
+          >
+            Unpublish
+          </button>
+        </div>
+      ))}
+      {offers && !offers.page.length && <p>No live offers on this page.</p>}
+      <label htmlFor="unpublish-reason">Takedown reason</label>
+      <input
+        id="unpublish-reason"
+        value={reason}
+        onChange={(event) => setReason(event.target.value)}
+        minLength={8}
+        maxLength={500}
+        placeholder="Why is this leaving the catalog?"
+      />
+      <div className="admin-toolbar">
+        <button
+          className="button"
+          disabled={!cursor}
+          onClick={() => setCursor(null)}
+        >
+          First page
+        </button>
+        <button
+          className="button"
+          disabled={!offers || offers.isDone}
+          onClick={() => offers && setCursor(offers.continueCursor)}
+        >
+          Next offers
+        </button>
+      </div>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+    </section>
   );
 }
 

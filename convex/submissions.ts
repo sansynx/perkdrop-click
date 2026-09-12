@@ -2,7 +2,7 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
-import { canonicalUrl } from "./lib/intakePolicy";
+import { canonicalUrl, isPerkdropHost } from "./lib/intakePolicy";
 import { workflow } from "./workflows";
 export const create = mutation({
   args: { url: v.string(), anonymousId: v.string() },
@@ -31,11 +31,7 @@ export async function enqueueIntake(
   } catch {
     throw new ConvexError("Enter a valid public website URL.");
   }
-  if (
-    ["perkdrop.click", "perkdrop-click.sansynx.workers.dev"].includes(
-      new URL(url).hostname,
-    )
-  )
+  if (isPerkdropHost(new URL(url).hostname))
     throw new ConvexError(
       "Submit the original offer page, rather than a Perkdrop link.",
     );

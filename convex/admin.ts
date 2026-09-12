@@ -9,7 +9,8 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { publish } from "./intake";
-import { canonicalUrl, sourceFavicon } from "./lib/intakePolicy";
+import { canonicalUrl, resolveProviderLogo } from "./lib/intakePolicy";
+import { removePublication } from "./lib/publications";
 import { workflow } from "./workflows";
 
 function authorize(token: string) {
@@ -158,7 +159,11 @@ export const queue = query({
           ],
           reasons: details?.reasons ?? ["Legacy submission: verify all terms"],
           ...(details?.imageUrl ? { imageUrl: details.imageUrl } : {}),
-          logoUrl: sourceFavicon(details?.logoUrl, candidate.claimUrl ?? ""),
+          logoUrl: resolveProviderLogo(
+            candidate.claimUrl ?? "",
+            candidate.provider,
+            details?.logoUrl,
+          ),
         };
       }),
     );
@@ -190,12 +195,26 @@ export const decide = mutation({
     for (const id of new Set(args.ids)) {
       const candidate = await ctx.db.get(id);
       if (!candidate || candidate.status !== "pending") continue;
-      if (args.decision === "approved") await publish(ctx, id);
-      await ctx.db.patch(id, { status: args.decision, reviewedAt: Date.now() });
+      let decision = args.decision;
+      let reason = args.reason.trim();
+      if (decision === "approved") {
+        try {
+          await publish(ctx, id);
+        } catch (error) {
+          if (
+            !(error instanceof Error) ||
+            error.message !== "Offer has expired"
+          )
+            throw error;
+          decision = "rejected";
+          reason = "Offer expired before review.";
+        }
+      }
+      await ctx.db.patch(id, { status: decision, reviewedAt: Date.now() });
       await ctx.db.insert("reviewAudit", {
         candidateId: id,
-        decision: args.decision,
-        reason: args.reason.trim(),
+        decision,
+        reason,
         actor: "administrator",
         createdAt: Date.now(),
       });
@@ -205,11 +224,13 @@ export const decide = mutation({
         .unique();
       if (details)
         await ctx.db.patch(details.jobId, {
-          status: args.decision,
+          status: decision,
           message:
-            args.decision === "approved"
+            decision === "approved"
               ? "Reviewed and published."
-              : "Reviewed; this offer does not meet the collection requirements.",
+              : reason === "Offer expired before review."
+                ? "Expired before review and was not published."
+                : "Reviewed; this offer does not meet the collection requirements.",
           updatedAt: Date.now(),
         });
       count++;
@@ -279,6 +300,102 @@ export const failedJobs = query({
       continueCursor: result.continueCursor,
       isDone: result.isDone,
     };
+  },
+});
+const liveItem = v.object({
+  resourceId: v.id("resources"),
+  slug: v.string(),
+  title: v.string(),
+  provider: v.string(),
+  claimUrl: v.string(),
+});
+export const liveOffers = query({
+  args: { token: v.string(), paginationOpts: paginationOptsValidator },
+  returns: v.object({
+    page: v.array(liveItem),
+    continueCursor: v.string(),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    authorize(args.token);
+    const result = await ctx.db
+      .query("publishedOffers")
+      .order("desc")
+      .paginate({
+        ...args.paginationOpts,
+        numItems: Math.min(20, Math.max(1, args.paginationOpts.numItems)),
+      });
+    const page: {
+      resourceId: Id<"resources">;
+      slug: string;
+      title: string;
+      provider: string;
+      claimUrl: string;
+    }[] = [];
+    for (const row of result.page) {
+      const resource = await ctx.db.get(row.resourceId);
+      if (!resource || resource.status !== "active") continue;
+      const provider = await ctx.db.get(resource.providerId);
+      page.push({
+        resourceId: resource._id,
+        slug: resource.slug,
+        title: resource.title,
+        provider: provider?.name ?? "Independent provider",
+        claimUrl: resource.resolvedClaimUrl ?? resource.originalClaimUrl ?? "",
+      });
+    }
+    return {
+      page,
+      continueCursor: result.continueCursor,
+      isDone: result.isDone,
+    };
+  },
+});
+export const unpublish = mutation({
+  args: {
+    token: v.string(),
+    resourceId: v.id("resources"),
+    reason: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    authorize(args.token);
+    const reason = args.reason.trim();
+    if (reason.length < 8 || reason.length > 500)
+      throw new Error("Provide a takedown reason");
+    const resource = await ctx.db.get(args.resourceId);
+    if (!resource || resource.status !== "active")
+      throw new Error("Only active offers can be unpublished");
+    const now = Date.now();
+    await ctx.db.patch(resource._id, {
+      status: "archived",
+      archivedAt: now,
+      updatedAt: now,
+    });
+    await removePublication(ctx, resource._id);
+    const details = await ctx.db
+      .query("candidateDetails")
+      .withIndex("by_resource", (q) => q.eq("resourceId", resource._id))
+      .unique();
+    if (details) {
+      await ctx.db.patch(details.candidateId, {
+        status: "rejected",
+        reviewedAt: now,
+      });
+      await ctx.db.insert("reviewAudit", {
+        candidateId: details.candidateId,
+        decision: "unpublished",
+        reason,
+        actor: "administrator",
+        createdAt: now,
+      });
+      await ctx.db.patch(details.jobId, {
+        status: "rejected",
+        message: "This offer has been removed from the public catalog.",
+        updatedAt: now,
+      });
+    }
+    return null;
   },
 });
 // Trust changes are restricted to the deployment operator, not public callers.

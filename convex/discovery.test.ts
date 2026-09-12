@@ -154,6 +154,27 @@ it("honors shared daily limits without reserving skipped URLs or charging domain
   ).toHaveLength(1);
 });
 
+it("skips self-links without rolling back valid discovery results", async () => {
+  const t = setup();
+  await t.mutation(internal.discovery.initialize, {});
+  await t.mutation(internal.discovery.runScheduled, {});
+  const run = await t.run((ctx) => ctx.db.query("discoveryRuns").first());
+  await t.mutation(internal.discovery.enqueue, {
+    runId: run!._id,
+    urls: [
+      "https://example.com/new",
+      "https://perkdrop-click.sansynx.workers.dev/",
+    ],
+  });
+  expect(await t.run((ctx) => ctx.db.get(run!._id))).toMatchObject({
+    status: "completed",
+    queued: 1,
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("intakeJobs").collect()),
+  ).toHaveLength(1);
+});
+
 it("keeps discovery activity admin-only and records exhausted search failures", async () => {
   const t = setup();
   await t.mutation(internal.discovery.initialize, {});

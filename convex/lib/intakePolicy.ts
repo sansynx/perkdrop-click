@@ -24,6 +24,14 @@ export function canonicalUrl(input: string): string {
   url.searchParams.sort();
   return url.href;
 }
+export function isPerkdropHost(host: string) {
+  const name = host.toLowerCase();
+  return (
+    name === "perkdrop.click" ||
+    name.endsWith(".perkdrop.click") ||
+    name.includes("perkdrop-click")
+  );
+}
 export type Offer = {
   provider: string;
   title: string;
@@ -110,11 +118,18 @@ export function providerLogo(
     "devpost.com": "devpost",
     "resend.com": "resend",
   };
-  const brand = logos[host];
-  return brand &&
-    (!provider || normalized(provider).replace(/[^a-z]/g, "") === brand)
+  const brand = logos[host.replace(/^www\./, "")];
+  const token = provider ? normalized(provider).replace(/[^a-z]/g, "") : "";
+  return brand && (!provider || token === brand || token.includes(brand))
     ? `https://cdn.simpleicons.org/${brand}/262626`
     : undefined;
+}
+export function resolveProviderLogo(
+  claimUrl: string,
+  provider?: string,
+  favicon?: unknown,
+): string | undefined {
+  return providerLogo(claimUrl, provider) ?? sourceFavicon(favicon, claimUrl);
 }
 export function sourceFavicon(
   value: unknown,

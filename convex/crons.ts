@@ -19,7 +19,7 @@ crons.cron(
 );
 crons.interval(
   "revalidate active resources",
-  { hours: 12 },
+  { hours: 2 },
   internal.revalidation.runScheduled,
 );
 export default crons;

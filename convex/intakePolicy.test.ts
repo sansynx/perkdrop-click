@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assess,
   canonicalUrl,
+  isPerkdropHost,
   offerKey,
   providerLogo,
   safeRewardImage,
@@ -57,6 +58,11 @@ describe("submission policy", () => {
   ])("blocks unsafe URL %s", (url) =>
     expect(() => canonicalUrl(url)).toThrow(),
   );
+  it("recognizes Perkdrop hosts so crawlers cannot loop", () => {
+    expect(isPerkdropHost("perkdrop.click")).toBe(true);
+    expect(isPerkdropHost("perkdrop-click.sanathr106.chatgpt.site")).toBe(true);
+    expect(isPerkdropHost("resend.com")).toBe(false);
+  });
   it("does not merge distinct campaigns or eligibility", () => {
     expect(offerKey(offer)).not.toBe(offerKey({ ...offer, valueText: "$200" }));
     expect(offerKey(offer)).not.toBe(
@@ -77,6 +83,12 @@ describe("submission policy", () => {
   });
   it("only accepts curated logo and image hosts", () => {
     expect(providerLogo("https://resend.com/startups")).toContain("/resend/");
+    expect(
+      providerLogo("https://education.github.com/pack", "GitHub Education"),
+    ).toContain("/github/");
+    expect(providerLogo("https://www.devpost.com/challenges")).toContain(
+      "/devpost/",
+    );
     expect(providerLogo("https://resend.com.evil.example")).toBeUndefined();
     expect(safeRewardImage("http://127.0.0.1/photo")).toBeUndefined();
     expect(safeRewardImage("https://tracking.example/photo")).toBeUndefined();
