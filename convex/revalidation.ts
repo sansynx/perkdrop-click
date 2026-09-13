@@ -2,7 +2,7 @@ import { internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { offerValidator } from "./intake";
-import { assess, offerKey } from "./lib/intakePolicy";
+import { assess, offerKey, safeRewardImage } from "./lib/intakePolicy";
 import { removePublication } from "./lib/publications";
 import { workflow } from "./workflows";
 
@@ -89,12 +89,12 @@ export const finish = internalMutation({
       } = args.offer;
       await ctx.db.patch(candidate._id, {
         ...fields,
-        category: fields.category ?? candidate.category,
+        category: candidate.category,
         status: expired ? "rejected" : "pending",
       });
       await ctx.db.patch(details._id, {
         expiresAt,
-        imageUrl: args.imageUrl,
+        imageUrl: safeRewardImage(args.imageUrl, args.offer.claimUrl),
         reasons: [
           "Offer changed during its scheduled check.",
           ...assessment.reasons,

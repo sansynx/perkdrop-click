@@ -2,8 +2,64 @@ import { mutation, query, type MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { ConvexError, v } from "convex/values";
-import { canonicalUrl, isPerkdropHost } from "./lib/intakePolicy";
+import {
+  canonicalUrl,
+  isPerkdropHost,
+  urlIdentity,
+  urlVariants,
+} from "./lib/intakePolicy";
 import { workflow } from "./workflows";
+
+async function rememberSeenUrl(
+  ctx: MutationCtx,
+  url: string,
+  jobId: Id<"intakeJobs">,
+) {
+  let identity: string;
+  try {
+    identity = urlIdentity(url);
+  } catch {
+    return;
+  }
+  const existing = await ctx.db
+    .query("seenUrls")
+    .withIndex("by_identity", (q) => q.eq("identity", identity))
+    .unique();
+  if (!existing)
+    await ctx.db.insert("seenUrls", {
+      identity,
+      jobId,
+      createdAt: Date.now(),
+    });
+}
+
+async function findExistingJob(ctx: MutationCtx, url: string) {
+  const exact = await ctx.db
+    .query("intakeJobs")
+    .withIndex("by_url", (q) => q.eq("canonicalUrl", url))
+    .unique();
+  if (exact) return exact;
+  try {
+    const seen = await ctx.db
+      .query("seenUrls")
+      .withIndex("by_identity", (q) => q.eq("identity", urlIdentity(url)))
+      .unique();
+    if (seen) {
+      const job = await ctx.db.get(seen.jobId);
+      if (job) return job;
+    }
+  } catch {
+    /* Invalid URLs cannot match a prior job. */
+  }
+  for (const variant of urlVariants(url)) {
+    const job = await ctx.db
+      .query("intakeJobs")
+      .withIndex("by_url", (q) => q.eq("canonicalUrl", variant))
+      .first();
+    if (job) return job;
+  }
+  return null;
+}
 export const create = mutation({
   args: { url: v.string(), anonymousId: v.string() },
   returns: v.object({ id: v.id("intakeJobs"), duplicate: v.boolean() }),
@@ -35,11 +91,11 @@ export async function enqueueIntake(
     throw new ConvexError(
       "Submit the original offer page, rather than a Perkdrop link.",
     );
-  const existing = await ctx.db
-    .query("intakeJobs")
-    .withIndex("by_url", (q) => q.eq("canonicalUrl", url))
-    .unique();
-  if (existing) return { id: existing._id, duplicate: true };
+  const existing = await findExistingJob(ctx, url);
+  if (existing) {
+    await rememberSeenUrl(ctx, url, existing._id);
+    return { id: existing._id, duplicate: true };
+  }
   if (!process.env.FIRECRAWL_API_KEY)
     throw new ConvexError(
       "Submissions are temporarily unavailable. Please try again later.",
@@ -80,6 +136,7 @@ export async function enqueueIntake(
     createdAt: now,
     updatedAt: now,
   });
+  await rememberSeenUrl(ctx, url, id);
   await workflow.start(
     ctx,
     internal.workflows.intake,

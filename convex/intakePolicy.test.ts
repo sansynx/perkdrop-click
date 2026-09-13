@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   assess,
   canonicalUrl,
+  isLowValueDiscovery,
   isPerkdropHost,
   offerKey,
   providerLogo,
   safeRewardImage,
   sourceFavicon,
+  urlIdentity,
   type Offer,
 } from "./lib/intakePolicy";
 const offer: Offer = {
@@ -81,7 +83,7 @@ describe("submission policy", () => {
       assess({ ...offer, expiresAt: 1 }, offer.evidence, true, 2).decision,
     ).toBe("rejected");
   });
-  it("only accepts curated logo and image hosts", () => {
+  it("only accepts same-origin reward images", () => {
     expect(providerLogo("https://resend.com/startups")).toContain("/resend/");
     expect(
       providerLogo("https://education.github.com/pack", "GitHub Education"),
@@ -91,9 +93,33 @@ describe("submission policy", () => {
     );
     expect(providerLogo("https://resend.com.evil.example")).toBeUndefined();
     expect(safeRewardImage("http://127.0.0.1/photo")).toBeUndefined();
-    expect(safeRewardImage("https://tracking.example/photo")).toBeUndefined();
     expect(
-      safeRewardImage("https://opengraph.githubassets.com/hash/org/repo"),
-    ).toBeDefined();
+      safeRewardImage("https://tracking.example/photo", "https://resend.com/x"),
+    ).toBeUndefined();
+    expect(
+      safeRewardImage(
+        "https://opengraph.githubassets.com/hash/org/repo",
+        "https://github.com/orgs/community/discussions/1",
+      ),
+    ).toBeUndefined();
+    expect(
+      safeRewardImage(
+        "https://education.github.com/pack.png",
+        "https://education.github.com/pack",
+      ),
+    ).toBe("https://education.github.com/pack.png");
+  });
+  it("treats tracking and www variants as the same discovery page", () => {
+    expect(urlIdentity("https://www.Example.com/pack?utm_source=tweet")).toBe(
+      urlIdentity("https://example.com/pack/"),
+    );
+    expect(
+      isLowValueDiscovery(
+        "https://github.com/orgs/community/discussions/197557",
+      ),
+    ).toBe(true);
+    expect(isLowValueDiscovery("https://education.github.com/pack")).toBe(
+      false,
+    );
   });
 });

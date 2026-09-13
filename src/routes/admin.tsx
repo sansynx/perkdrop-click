@@ -6,6 +6,12 @@ import { api } from "../../convex/_generated/api";
 import { backend } from "../lib/convex-client";
 import { Brand } from "../components/site-chrome";
 import { useQuery } from "convex/react";
+import {
+  OFFER_AUDIENCES,
+  OFFER_CATEGORIES,
+  catalogAudience,
+  catalogCategory,
+} from "../../convex/lib/categories";
 
 export const Route = createFileRoute("/admin")({ component: AdminPage });
 function AdminPage() {
@@ -20,6 +26,8 @@ function AdminPage() {
   const [status, setStatus] = useState<"pending" | "approved" | "rejected">(
     "pending",
   );
+  const [categories, setCategories] = useState<Record<string, string>>({});
+  const [audiences, setAudiences] = useState<Record<string, string>>({});
   async function load(cursor: string | null = null, nextStatus = status) {
     if (!backend) {
       setError("Backend is not configured.");
@@ -28,16 +36,27 @@ function AdminPage() {
     setBusy(true);
     setError("");
     try {
-      setResult(
-        await backend.query(api.admin.queue, {
-          token: token.trim(),
-          status: nextStatus,
-          paginationOpts: { cursor, numItems: 20 },
-        }),
-      );
+      const page = await backend.query(api.admin.queue, {
+        token: token.trim(),
+        status: nextStatus,
+        paginationOpts: { cursor, numItems: 20 },
+      });
+      setResult(page);
       setToken(token.trim());
       setStatus(nextStatus);
       setSelected([]);
+      setCategories((current) => {
+        const next = { ...current };
+        for (const item of page.page)
+          next[item.id] = catalogCategory(next[item.id] ?? item.category);
+        return next;
+      });
+      setAudiences((current) => {
+        const next = { ...current };
+        for (const item of page.page)
+          next[item.id] = catalogAudience(next[item.id] ?? item.audience);
+        return next;
+      });
     } catch {
       setError(
         "Cannot open the queue. Check administrator access and the backend connection.",
@@ -46,22 +65,44 @@ function AdminPage() {
       setBusy(false);
     }
   }
-  async function decide(decision: "approved" | "rejected") {
-    if (!backend) return;
+  async function decide(decision: "approved" | "rejected", ids = selected) {
+    if (!backend || !ids.length) return;
     setBusy(true);
     setError("");
     try {
       await backend.mutation(api.admin.decide, {
         token,
-        ids: selected,
+        ids,
         decision,
-        reason,
+        ...(reason.trim() ? { reason: reason.trim() } : {}),
+        categories: ids.map((id) => ({
+          id,
+          category: catalogCategory(categories[id] ?? ""),
+        })),
+        audiences: ids.map((id) => ({
+          id,
+          audience: catalogAudience(audiences[id] ?? ""),
+        })),
       });
       setReason("");
       await load();
     } catch {
+      setError("Decision was not saved. Check the claim link and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function reopen(ids = selected) {
+    if (!backend || !ids.length) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.reopen, { token, ids });
+      setSelected([]);
+      await load();
+    } catch {
       setError(
-        "Decision was not saved. Check the review reason and confirm that selected offers have valid, unexpired claim links.",
+        "Could not return those offers to review. Refresh and try again.",
       );
     } finally {
       setBusy(false);
@@ -175,6 +216,8 @@ function AdminPage() {
                   setResult(null);
                   setToken("");
                   setSelected([]);
+                  setCategories({});
+                  setAudiences({});
                   setReason("");
                   setError("");
                 }}
@@ -185,9 +228,9 @@ function AdminPage() {
             {result.page.map((item) => (
               <article
                 key={item.id}
-                className={`candidate-row ${status === "pending" ? "selectable-candidate" : ""}`}
+                className={`candidate-row ${status === "pending" || status === "rejected" ? "selectable-candidate" : ""}`}
               >
-                {status === "pending" && (
+                {(status === "pending" || status === "rejected") && (
                   <input
                     aria-label={`Select ${item.title}`}
                     type="checkbox"
@@ -221,6 +264,53 @@ function AdminPage() {
                   <h2>{item.title}</h2>
                   <p>{item.reasons.join(" · ")}</p>
                   <p>Eligibility: {item.eligibility.join(", ") || "Unknown"}</p>
+                  {item.lastReason && status !== "pending" && (
+                    <p>Last review: {item.lastReason}</p>
+                  )}
+                  {status === "pending" && (
+                    <div className="admin-placement">
+                      <label className="admin-category">
+                        Homepage category
+                        <select
+                          value={catalogCategory(
+                            categories[item.id] ?? item.category,
+                          )}
+                          onChange={(event) =>
+                            setCategories((current) => ({
+                              ...current,
+                              [item.id]: event.target.value,
+                            }))
+                          }
+                        >
+                          {OFFER_CATEGORIES.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="admin-category">
+                        Homepage audience
+                        <select
+                          value={catalogAudience(
+                            audiences[item.id] ?? item.audience,
+                          )}
+                          onChange={(event) =>
+                            setAudiences((current) => ({
+                              ...current,
+                              [item.id]: event.target.value,
+                            }))
+                          }
+                        >
+                          {OFFER_AUDIENCES.map((audience) => (
+                            <option key={audience} value={audience}>
+                              {audience}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  )}
                   <ul>
                     {item.terms.map((term) => (
                       <li key={term}>{term}</li>
@@ -247,21 +337,34 @@ function AdminPage() {
                       </a>
                     </p>
                   )}
-                  {item.imageUrl && (
-                    <img
-                      src={item.imageUrl}
-                      alt={`${item.provider} offer preview`}
-                      loading="lazy"
-                      referrerPolicy="no-referrer"
-                      style={{
-                        maxWidth: "min(280px, 100%)",
-                        maxHeight: 160,
-                        objectFit: "contain",
-                      }}
-                      onError={(event) => {
-                        event.currentTarget.hidden = true;
-                      }}
-                    />
+                  {status === "pending" && (
+                    <div className="candidate-actions">
+                      <button
+                        className="button button-primary"
+                        disabled={busy}
+                        onClick={() => void decide("approved", [item.id])}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => void decide("rejected", [item.id])}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  )}
+                  {status === "rejected" && (
+                    <div className="candidate-actions">
+                      <button
+                        className="button button-primary"
+                        disabled={busy}
+                        onClick={() => void reopen([item.id])}
+                      >
+                        Return to review
+                      </button>
+                    </div>
                   )}
                 </div>
               </article>
@@ -276,34 +379,53 @@ function AdminPage() {
             )}
             {status === "pending" && result.page.length > 0 && (
               <div className="review-controls">
+                <button
+                  className="button"
+                  disabled={busy}
+                  onClick={() =>
+                    setSelected(result.page.map((item) => item.id))
+                  }
+                >
+                  Select all on this page
+                </button>
                 <label htmlFor="review-reason">
-                  Review reason ({selected.length} selected)
+                  Optional note ({selected.length} selected)
                 </label>
                 <input
                   id="review-reason"
                   value={reason}
                   onChange={(event) => setReason(event.target.value)}
-                  minLength={8}
                   maxLength={500}
-                  placeholder="What did you verify?"
+                  placeholder="Optional. Approve or reject on the card if you prefer."
                 />
                 <button
                   className="button button-primary"
-                  disabled={
-                    busy || !selected.length || reason.trim().length < 8
-                  }
+                  disabled={busy || !selected.length}
                   onClick={() => void decide("approved")}
                 >
                   Approve selected
                 </button>
                 <button
                   className="button"
-                  disabled={
-                    busy || !selected.length || reason.trim().length < 8
-                  }
+                  disabled={busy || !selected.length}
                   onClick={() => void decide("rejected")}
                 >
                   Reject selected
+                </button>
+              </div>
+            )}
+            {status === "rejected" && result.page.length > 0 && (
+              <div className="review-controls">
+                <p>
+                  {selected.length} selected. Send a rejected find back to Needs
+                  review if the extraction was wrong.
+                </p>
+                <button
+                  className="button button-primary"
+                  disabled={busy || !selected.length}
+                  onClick={() => void reopen()}
+                >
+                  Return to review
                 </button>
               </div>
             )}
@@ -316,7 +438,7 @@ function AdminPage() {
                 First page / refresh
               </button>
               <button
-                className="button"
+                className="button button-primary"
                 disabled={busy || result.isDone}
                 onClick={() => void load(result.continueCursor)}
               >
@@ -343,7 +465,6 @@ function AdminPage() {
 
 function LiveCatalog({ token }: { token: string }) {
   const [cursor, setCursor] = useState<string | null>(null);
-  const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const offers = useQuery(api.admin.liveOffers, {
@@ -355,16 +476,30 @@ function LiveCatalog({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      await backend.mutation(api.admin.unpublish, {
+      await backend.mutation(api.admin.unpublish, { token, resourceId });
+    } catch {
+      setError("That offer could not be removed. Refresh and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function recategorize(
+    resourceId: Id<"resources">,
+    category: string,
+    audience: string,
+  ) {
+    if (!backend) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.recategorize, {
         token,
         resourceId,
-        reason,
+        category,
+        audience,
       });
-      setReason("");
     } catch {
-      setError(
-        "Takedown was not saved. Check the reason and confirm the offer is still live.",
-      );
+      setError("Category or audience was not saved. Refresh and try again.");
     } finally {
       setBusy(false);
     }
@@ -373,8 +508,8 @@ function LiveCatalog({ token }: { token: string }) {
     <section className="admin-live">
       <h2>Live catalog</h2>
       <p>
-        Remove a published perk immediately if the claim link is broken,
-        fraudulent, or no longer free.
+        These offers are on the homepage. Set the category so the right filter
+        shows them, or take one down if the claim is broken.
       </p>
       {!offers && <p role="status">Loading published offers…</p>}
       {offers?.page.map((item) => (
@@ -384,26 +519,63 @@ function LiveCatalog({ token }: { token: string }) {
               {item.provider} · {item.title}
             </p>
             <p>{item.claimUrl || item.slug}</p>
+            <div className="admin-placement">
+              <label className="admin-category">
+                Homepage category
+                <select
+                  value={catalogCategory(item.category)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    void recategorize(
+                      item.resourceId,
+                      event.target.value,
+                      item.audience,
+                    )
+                  }
+                >
+                  {OFFER_CATEGORIES.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="admin-category">
+                Homepage audience
+                <select
+                  value={catalogAudience(item.audience)}
+                  disabled={busy}
+                  onChange={(event) =>
+                    void recategorize(
+                      item.resourceId,
+                      item.category,
+                      event.target.value,
+                    )
+                  }
+                >
+                  {OFFER_AUDIENCES.map((audience) => (
+                    <option key={audience} value={audience}>
+                      {audience}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
           <button
             className="button"
-            disabled={busy || reason.trim().length < 8}
+            disabled={busy}
             onClick={() => void unpublish(item.resourceId)}
           >
             Unpublish
           </button>
         </div>
       ))}
-      {offers && !offers.page.length && <p>No live offers on this page.</p>}
-      <label htmlFor="unpublish-reason">Takedown reason</label>
-      <input
-        id="unpublish-reason"
-        value={reason}
-        onChange={(event) => setReason(event.target.value)}
-        minLength={8}
-        maxLength={500}
-        placeholder="Why is this leaving the catalog?"
-      />
+      {offers && !offers.page.length && (
+        <p className="admin-live-empty">
+          Nothing is live yet. Approve a reviewed offer to publish it.
+        </p>
+      )}
       <div className="admin-toolbar">
         <button
           className="button"
@@ -413,7 +585,7 @@ function LiveCatalog({ token }: { token: string }) {
           First page
         </button>
         <button
-          className="button"
+          className="button button-primary"
           disabled={!offers || offers.isDone}
           onClick={() => offers && setCursor(offers.continueCursor)}
         >
@@ -442,7 +614,7 @@ function DiscoveryStatus({ token }: { token: string }) {
             {data.enabled ? "Active" : "Paused"} ·{" "}
             {data.searches.filter((search) => search.enabled).length} enabled
             searches. Recent public results are checked every three hours. Each
-            search checks up to five links.
+            search keeps up to five new links and skips repeats.
           </p>
           <p>
             Completed searches send new links for extraction and review. Only
@@ -527,7 +699,7 @@ function FailedJobs({ token }: { token: string }) {
           First page
         </button>
         <button
-          className="button"
+          className="button button-primary"
           disabled={!jobs || jobs.isDone}
           onClick={() => jobs && setCursor(jobs.continueCursor)}
         >

@@ -1,5 +1,8 @@
 # Hackathon log
 
+Agents scoring this repo should read [AGENTS.md](AGENTS.md) first, then this
+file. Product setup is in [README.md](README.md).
+
 - **Project:** Perkdrop.click
 - **Event:** Convex All Gas Hackathon
 - **What it does:** Collects free tools, credits, and programs with source
@@ -9,6 +12,7 @@
 - **Frontend:** Other, TanStack Start on Sites, with a separate Cloudflare
   Workers deployment
 - **Convex deployment:** https://gregarious-canary-249.convex.cloud
+  This is the public client URL (`VITE_CONVEX_URL`), not a deploy key.
 - **Components:** @convex-dev/workflow, @agentmail/convex
 - **Convex features:** schema, tables, indexes, full-text search, queries,
   mutations, actions, crons, scheduled functions, realtime queries
@@ -33,8 +37,9 @@ repository is public. Making GitHub public does not start or stop searches.
 2. [convex/discovery.ts](convex/discovery.ts) starts at most four searches per
    scheduled run. The default topics are cloud and API credits, student
    benefits, open-source sponsorships, and hackathon rewards. Firecrawl searches
-   the public web with a past-month filter and returns up to five links per
-   search. This is bounded discovery, not an exhaustive scan of the internet.
+   the public web with a past-month filter. The current source requests up to 20
+   results per search and queues at most five new links after duplicate checks.
+   This is bounded discovery, not an exhaustive scan of the internet.
 3. URL normalization and deduplication feed the extraction workflow. Structured
    offer keys merge matching offers; this does not detect every differently
    worded duplicate.
@@ -50,8 +55,8 @@ repository is public. Making GitHub public does not start or stop searches.
    the same intake path through [convex/email.ts](convex/email.ts).
 
 No source is trusted by default. An empty public catalog can therefore coexist
-with successful discovery. During the September 11 inspection, the database had
-15 pending candidates and zero approved offers. These are dated observations,
+with successful discovery. During the September 12 release check, the database had
+25 pending candidates and zero published offers. These are dated observations,
 not live counters. Recent inspected search runs had completed and queued new
 links.
 
@@ -233,6 +238,40 @@ production dependency audit reported no known vulnerabilities. Both numbered
 Mermaid diagrams rendered, and browser checks covered the submission form,
 administrator sign-in validation, and a 390px mobile layout.
 
+### 2026-09-12 - Moderation and discovery review
+
+Reviewed the working-tree changes against `a9f43bf`, including public entry
+points, authorization, the new schema, discovery, publication, and admin UI.
+Added per-offer decisions, optional audit notes, return-to-review controls,
+and shared category and audience choices. Notes still produce an audit record
+when an administrator leaves the optional text blank.
+
+The review found and corrected five behavioral issues:
+
+- URL identities discarded meaningful query values and path case, merging
+  distinct offers. Tracking parameters still deduplicate, while offer identity
+  is preserved. This affects website, email, and discovery intake.
+- Legacy HTTP jobs did not match HTTPS variants before the new `seenUrls`
+  index had a record. Bounded variant lookup now handles that transition.
+- Revalidation replaced administrator category and audience choices. Optional
+  candidate audience storage now preserves those choices through re-review.
+- Approval accepted invalid placement values by substituting defaults. The
+  mutation now validates supplied categories, audiences, batch size, and IDs.
+- Existing cross-origin reward images could still reach public responses.
+  Catalog reads now apply the same image policy as ingestion.
+
+Regression tests reproduced the failures before fixes. All 69 tests passed,
+both TypeScript checks passed, and the production build completed. The local
+Convex push installed the new index and validated the schema. The new table
+and optional field do not require rewriting existing production documents.
+An independent backend review found the legacy lookup issue described above.
+
+Scope limits: this was a source and local-runtime review, not a penetration
+test, load test, or live email-delivery test. Public anonymous intake and
+feedback remain rate-limited rather than proof of a unique person. Query-time
+expiry checks also rely on scheduled cleanup for live subscribers. These
+changes have not yet been deployed to production.
+
 ## Submission requirements and current gaps
 
 ### Reviewer access
@@ -276,7 +315,7 @@ correctness issues in this change.
 
 Checked against the
 [official event page](https://www.convex.dev/hackathons/all-gas) on September
-11, 2026. Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
+12, 2026. Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
 
 - [x] Convex backend and Firecrawl integration implemented.
 - [x] Root `hackathon.md` created from repository evidence.
@@ -285,22 +324,37 @@ Checked against the
       chatgpt.site deployment on September 11.
 - [x] AgentMail inbound intake, webhook, and receipts. Direct OpenAI model calls
       in the product remain absent; Codex was used during development.
-- [ ] Confirm Luma registration and participant eligibility, including age 18+,
-      location restrictions, and original work begun after the event's August 25
-      start.
-- [ ] Demo video under three minutes. No video supplied.
-- [ ] X or LinkedIn build post tagging the four sponsors. No post supplied.
-- [ ] Submit repository, eligible live URL, and video through the event's linked
-      submission form.
+- [x] Luma registration. The owner confirmed registration on September 12;
+      this is participant-reported, not independently verified in the signed-out browser.
+- [ ] Confirm personal eligibility against the official rules, including age,
+      location and employment restrictions. The first recorded commit is September 9;
+      original work must have begun within the permitted build window.
+- [ ] Demo video under three minutes. No video supplied. Keep any spoken
+      script off git.
+- [ ] X or LinkedIn build post tagging Convex, OpenAI, Firecrawl, and
+      AgentMail. No post supplied.
+- [ ] Submit repository, chatgpt.site live URL, and video on
+      [the event submission form](https://vibeapps.dev/judging/convex-all-gas-hackathon-openai/submit)
+      before September 22 at 12:00 PM PT. No
+      localhost. No Workers-only URL. Repo must stay public.
 
 ## Product work before the demo
 
-- Deploy the audited backend and website changes, then verify a real forwarded
-  announcement and its receipt. This audit did not send live email.
+- Commit `a9f43bf` was deployed to Convex, Sites version 4, and Workers on
+  September 12. Convex schema validation succeeded with no index deletions.
+  Later moderation and discovery changes need their own release after review.
+- Verify a real forwarded announcement and receipt before recording that flow.
+  The automated audit did not send live email.
 - Review pending candidates against their sources and publish only eligible
   offers. Discovery already runs; pending candidates are not public listings.
 - Keep sponsor integration claims factual. Do not represent the current project
   as submitted or fully compliant. Direct OpenAI product calls are still absent.
+
+The event page asks for sponsor services doing work inside the product. Codex
+and Sites usage is documented, but whether it earns the OpenAI integration credit
+needs organizer confirmation. WebMCP is not an OpenAI API. The criteria also
+favor everyday apps over developer-only tools; demonstrate the student and
+offer-discovery use cases without claiming a guaranteed qualification or score.
 
 ## Hackathon and thanks
 
@@ -308,4 +362,5 @@ Built as part of the
 [Convex All Gas hackathon](https://www.convex.dev/hackathons/all-gas). Thank you
 to Convex, OpenAI, Firecrawl, and AgentMail for hosting and sponsoring the
 event. The implementation evidence and unchecked requirements above distinguish
-what has shipped from what remains before submission.
+what has shipped from what remains before submission. File map for agents:
+[AGENTS.md](AGENTS.md).

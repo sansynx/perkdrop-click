@@ -304,7 +304,6 @@ it("unpublishes an active offer and removes it from the live catalog", async () 
   await t.mutation(api.admin.unpublish, {
     token,
     resourceId: resource._id,
-    reason: "Claim page now requires payment",
   });
   expect(await t.query(api.catalog.get, { slug: resource.slug })).toBeNull();
   expect(await t.query(api.submissions.status, { id: jobId })).toMatchObject({
@@ -316,6 +315,165 @@ it("unpublishes an active offer and removes it from the live catalog", async () 
   expect(
     await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
   ).toHaveLength(0);
+});
+
+it("returns a rejected offer to pending review", async () => {
+  const { t, candidate } = await fixture();
+  await t.run((ctx) =>
+    ctx.db.patch(candidate._id, { status: "rejected", reviewedAt: 2 }),
+  );
+  expect(
+    await t.mutation(api.admin.reopen, { token, ids: [candidate._id] }),
+  ).toBe(1);
+  expect(await t.run((ctx) => ctx.db.get(candidate._id))).toMatchObject({
+    status: "pending",
+  });
+});
+
+it("moves a live offer into another homepage category", async () => {
+  const { t, resource } = await fixture();
+  await t.mutation(api.admin.recategorize, {
+    token,
+    resourceId: resource._id,
+    category: "Education",
+    audience: "Students",
+  });
+  expect(await t.run((ctx) => ctx.db.get(resource._id))).toMatchObject({
+    category: "Education",
+  });
+  const live = await t.query(api.admin.liveOffers, {
+    token,
+    paginationOpts: { cursor: null, numItems: 10 },
+  });
+  expect(live.page[0]?.category).toBe("Education");
+  expect(live.page[0]?.audience).toBe("Students");
+});
+
+it("approves from the queue without a typed review note", async () => {
+  const { t } = await fixture();
+  const jobId = await t.run((ctx) =>
+    ctx.db.insert("intakeJobs", {
+      canonicalUrl: "https://example.com/second",
+      status: "queued",
+      message: "",
+      createdAt: 2,
+      updatedAt: 2,
+    }),
+  );
+  await t.mutation(internal.intake.finish, {
+    jobId,
+    url: "https://example.com/second",
+    finalUrl: "https://example.com/second",
+    offer: {
+      ...offer,
+      title: "Second credits",
+      claimUrl: "https://example.com/second",
+    },
+    markdown: offer.evidence,
+  });
+  const pending = await t.run((ctx) =>
+    ctx.db
+      .query("resourceCandidates")
+      .filter((q) => q.eq(q.field("title"), "Second credits"))
+      .first(),
+  );
+  expect(
+    await t.mutation(api.admin.decide, {
+      token,
+      ids: [pending!._id],
+      decision: "approved",
+    }),
+  ).toBe(1);
+  const queue = await t.query(api.admin.queue, {
+    token,
+    status: "approved",
+    paginationOpts: { cursor: null, numItems: 20 },
+  });
+  expect(queue.page.some((item) => item.lastReason)).toBe(true);
+});
+
+it("preserves administrator placement when changed terms return for review", async () => {
+  const { t, resource, candidate } = await fixture();
+  await t.mutation(api.admin.recategorize, {
+    token,
+    resourceId: resource._id,
+    category: "Education",
+    audience: "Students",
+  });
+  await t.mutation(internal.revalidation.finish, {
+    resourceId: resource._id,
+    checkedAt: Date.now(),
+    offer: { ...offer, category: "AI & APIs", valueText: "$50" },
+    markdown: offer.evidence,
+    finalUrl: offer.claimUrl,
+  });
+  const queue = await t.query(api.admin.queue, {
+    token,
+    status: "pending",
+    paginationOpts: { cursor: null, numItems: 20 },
+  });
+  expect(queue.page[0]).toMatchObject({
+    category: "Education",
+    audience: "Students",
+  });
+  await t.mutation(api.admin.decide, {
+    token,
+    ids: [candidate._id],
+    decision: "approved",
+  });
+  const page = await t.query(api.catalog.page, {
+    category: "Education",
+    audience: "Students",
+    search: "",
+    endingSoon: false,
+    paginationOpts: { cursor: null, numItems: 5 },
+  });
+  expect(page.page).toHaveLength(1);
+});
+
+it("rejects invalid placement rather than silently publishing defaults", async () => {
+  const { t, resource, candidate } = await fixture();
+  await t.mutation(api.admin.unpublish, { token, resourceId: resource._id });
+  await t.mutation(api.admin.reopen, { token, ids: [candidate._id] });
+  await expect(
+    t.mutation(api.admin.decide, {
+      token,
+      ids: [candidate._id],
+      decision: "approved",
+      categories: [{ id: candidate._id, category: "made up" }],
+    }),
+  ).rejects.toThrow("category");
+  expect(await t.query(api.catalog.get, { slug: resource.slug })).toBeNull();
+});
+
+it("keeps the new moderation mutations private", async () => {
+  const { t, resource, candidate } = await fixture();
+  await expect(
+    t.mutation(api.admin.recategorize, {
+      token: "AllGas2026",
+      resourceId: resource._id,
+      category: "Education",
+    }),
+  ).rejects.toThrow("Administrator access required");
+  await expect(
+    t.mutation(api.admin.reopen, {
+      token: "AllGas2026",
+      ids: [candidate._id],
+    }),
+  ).rejects.toThrow("Administrator access required");
+});
+
+it("does not expose legacy cross-origin reward images", async () => {
+  const { t, resource } = await fixture();
+  await t.run(async (ctx) => {
+    const publication = await ctx.db.query("publishedOffers").first();
+    await ctx.db.patch(publication!._id, {
+      imageUrl: "https://tracker.example/pixel",
+    });
+  });
+  expect(
+    (await t.query(api.catalog.get, { slug: resource.slug }))?.imageUrl,
+  ).toBeUndefined();
 });
 
 it("rechecks more than ten due offers in one scheduled run", async () => {

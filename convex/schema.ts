@@ -180,6 +180,7 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_resource", ["resourceId"]),
   resourceCandidates: defineTable({
+    audience: v.optional(v.string()),
     sourceUrl: v.string(),
     provider: v.string(),
     title: v.string(),
@@ -225,6 +226,11 @@ export default defineSchema({
     limited: v.number(),
     message: v.optional(v.string()),
   }).index("by_started", ["startedAt"]),
+  seenUrls: defineTable({
+    identity: v.string(),
+    jobId: v.id("intakeJobs"),
+    createdAt: v.number(),
+  }).index("by_identity", ["identity"]),
   submissions: defineTable({
     url: v.string(),
     anonymousId: v.string(),

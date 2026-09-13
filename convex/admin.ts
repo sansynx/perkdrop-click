@@ -10,6 +10,13 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { publish } from "./intake";
 import { canonicalUrl, resolveProviderLogo } from "./lib/intakePolicy";
+import {
+  catalogAudience,
+  catalogCategory,
+  inferAudience,
+  isOfferAudience,
+  isOfferCategory,
+} from "./lib/categories";
 import { removePublication } from "./lib/publications";
 import { workflow } from "./workflows";
 
@@ -104,8 +111,10 @@ const item = v.object({
   reasons: v.array(v.string()),
   eligibility: v.array(v.string()),
   value: v.string(),
+  category: v.string(),
+  audience: v.string(),
+  lastReason: v.optional(v.string()),
   terms: v.array(v.string()),
-  imageUrl: v.optional(v.string()),
   logoUrl: v.optional(v.string()),
 });
 export const queue = query({
@@ -135,10 +144,29 @@ export const queue = query({
       });
     const page = await Promise.all(
       result.page.map(async (candidate) => {
-        const details = await ctx.db
-          .query("candidateDetails")
-          .withIndex("by_candidate", (q) => q.eq("candidateId", candidate._id))
-          .unique();
+        const [details, lastAudit] = await Promise.all([
+          ctx.db
+            .query("candidateDetails")
+            .withIndex("by_candidate", (q) =>
+              q.eq("candidateId", candidate._id),
+            )
+            .unique(),
+          ctx.db
+            .query("reviewAudit")
+            .withIndex("by_candidate", (q) =>
+              q.eq("candidateId", candidate._id),
+            )
+            .order("desc")
+            .first(),
+        ]);
+        const published = details?.resourceId
+          ? await ctx.db
+              .query("publishedOffers")
+              .withIndex("by_resource", (q) =>
+                q.eq("resourceId", details.resourceId!),
+              )
+              .unique()
+          : null;
         return {
           id: candidate._id,
           title: candidate.title,
@@ -148,6 +176,13 @@ export const queue = query({
           evidence: candidate.evidence ?? "",
           eligibility: candidate.eligibility,
           value: candidate.valueText ?? "Unspecified",
+          category: candidate.category,
+          audience: catalogAudience(
+            candidate.audience ??
+              published?.audience ??
+              inferAudience(candidate.eligibility),
+          ),
+          ...(lastAudit?.reason ? { lastReason: lastAudit.reason } : {}),
           terms: [
             ...candidate.requirements,
             `Regions: ${candidate.regions.join(", ") || "Unknown"}`,
@@ -158,7 +193,6 @@ export const queue = query({
               : []),
           ],
           reasons: details?.reasons ?? ["Legacy submission: verify all terms"],
-          ...(details?.imageUrl ? { imageUrl: details.imageUrl } : {}),
           logoUrl: resolveProviderLogo(
             candidate.claimUrl ?? "",
             candidate.provider,
@@ -179,27 +213,74 @@ export const decide = mutation({
     token: v.string(),
     ids: v.array(v.id("resourceCandidates")),
     decision: v.union(v.literal("approved"), v.literal("rejected")),
-    reason: v.string(),
+    reason: v.optional(v.string()),
+    categories: v.optional(
+      v.array(
+        v.object({
+          id: v.id("resourceCandidates"),
+          category: v.string(),
+        }),
+      ),
+    ),
+    audiences: v.optional(
+      v.array(
+        v.object({
+          id: v.id("resourceCandidates"),
+          audience: v.string(),
+        }),
+      ),
+    ),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
     authorize(args.token);
+    const note = args.reason?.trim() || "Reviewed by administrator.";
+    if (!args.ids.length || args.ids.length > 20 || note.length > 500)
+      throw new Error("Select 1–20 offers");
     if (
-      !args.ids.length ||
-      args.ids.length > 20 ||
-      args.reason.trim().length < 8 ||
-      args.reason.length > 500
+      (args.categories?.length ?? 0) > 20 ||
+      (args.audiences?.length ?? 0) > 20
     )
-      throw new Error("Select 1–20 offers and provide a review reason");
+      throw new Error("Choose placement for at most 20 offers");
+    for (const item of args.categories ?? [])
+      if (!args.ids.includes(item.id) || !isOfferCategory(item.category))
+        throw new Error("Choose a catalog category for a selected offer");
+    for (const item of args.audiences ?? [])
+      if (!args.ids.includes(item.id) || !isOfferAudience(item.audience))
+        throw new Error("Choose an audience for a selected offer");
+    const chosen = new Map(
+      (args.categories ?? []).map((item) => [item.id, item.category]),
+    );
+    const chosenAudience = new Map(
+      (args.audiences ?? []).map((item) => [item.id, item.audience]),
+    );
     let count = 0;
     for (const id of new Set(args.ids)) {
       const candidate = await ctx.db.get(id);
       if (!candidate || candidate.status !== "pending") continue;
       let decision = args.decision;
-      let reason = args.reason.trim();
+      let reason = note;
       if (decision === "approved") {
+        await ctx.db.patch(id, {
+          category: catalogCategory(chosen.get(id) ?? candidate.category),
+          audience: catalogAudience(
+            chosenAudience.get(id) ??
+              candidate.audience ??
+              inferAudience(candidate.eligibility),
+          ),
+        });
         try {
-          await publish(ctx, id);
+          const resourceId = await publish(ctx, id);
+          const audience = catalogAudience(
+            chosenAudience.get(id) ??
+              candidate.audience ??
+              inferAudience(candidate.eligibility),
+          );
+          const published = await ctx.db
+            .query("publishedOffers")
+            .withIndex("by_resource", (q) => q.eq("resourceId", resourceId))
+            .unique();
+          if (published) await ctx.db.patch(published._id, { audience });
         } catch (error) {
           if (
             !(error instanceof Error) ||
@@ -307,6 +388,8 @@ const liveItem = v.object({
   slug: v.string(),
   title: v.string(),
   provider: v.string(),
+  category: v.string(),
+  audience: v.string(),
   claimUrl: v.string(),
 });
 export const liveOffers = query({
@@ -330,6 +413,8 @@ export const liveOffers = query({
       slug: string;
       title: string;
       provider: string;
+      category: string;
+      audience: string;
       claimUrl: string;
     }[] = [];
     for (const row of result.page) {
@@ -341,6 +426,8 @@ export const liveOffers = query({
         slug: resource.slug,
         title: resource.title,
         provider: provider?.name ?? "Independent provider",
+        category: resource.category,
+        audience: catalogAudience(row.audience ?? "Everyone"),
         claimUrl: resource.resolvedClaimUrl ?? resource.originalClaimUrl ?? "",
       });
     }
@@ -355,14 +442,13 @@ export const unpublish = mutation({
   args: {
     token: v.string(),
     resourceId: v.id("resources"),
-    reason: v.string(),
+    reason: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     authorize(args.token);
-    const reason = args.reason.trim();
-    if (reason.length < 8 || reason.length > 500)
-      throw new Error("Provide a takedown reason");
+    const reason = args.reason?.trim() || "Removed by administrator.";
+    if (reason.length > 500) throw new Error("Takedown note is too long");
     const resource = await ctx.db.get(args.resourceId);
     if (!resource || resource.status !== "active")
       throw new Error("Only active offers can be unpublished");
@@ -396,6 +482,87 @@ export const unpublish = mutation({
       });
     }
     return null;
+  },
+});
+export const recategorize = mutation({
+  args: {
+    token: v.string(),
+    resourceId: v.id("resources"),
+    category: v.string(),
+    audience: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    authorize(args.token);
+    if (!isOfferCategory(args.category))
+      throw new Error("Choose a catalog category");
+    if (args.audience !== undefined && !isOfferAudience(args.audience))
+      throw new Error("Choose who this offer is for");
+    const resource = await ctx.db.get(args.resourceId);
+    if (!resource || resource.status !== "active")
+      throw new Error("Only live offers can change category");
+    const now = Date.now();
+    await ctx.db.patch(resource._id, {
+      category: args.category,
+      updatedAt: now,
+    });
+    const published = await ctx.db
+      .query("publishedOffers")
+      .withIndex("by_resource", (q) => q.eq("resourceId", resource._id))
+      .unique();
+    if (published)
+      await ctx.db.patch(published._id, {
+        category: args.category,
+        ...(args.audience ? { audience: args.audience } : {}),
+      });
+    const details = await ctx.db
+      .query("candidateDetails")
+      .withIndex("by_resource", (q) => q.eq("resourceId", resource._id))
+      .unique();
+    if (details)
+      await ctx.db.patch(details.candidateId, {
+        category: args.category,
+        ...(args.audience ? { audience: args.audience } : {}),
+      });
+    return null;
+  },
+});
+export const reopen = mutation({
+  args: {
+    token: v.string(),
+    ids: v.array(v.id("resourceCandidates")),
+  },
+  returns: v.number(),
+  handler: async (ctx, args) => {
+    authorize(args.token);
+    if (!args.ids.length || args.ids.length > 20)
+      throw new Error("Select 1–20 rejected offers");
+    let count = 0;
+    const now = Date.now();
+    for (const id of new Set(args.ids)) {
+      const candidate = await ctx.db.get(id);
+      if (!candidate || candidate.status !== "rejected") continue;
+      await ctx.db.patch(id, { status: "pending", reviewedAt: now });
+      await ctx.db.insert("reviewAudit", {
+        candidateId: id,
+        decision: "reopened",
+        reason: "Returned to review.",
+        actor: "administrator",
+        createdAt: now,
+      });
+      const details = await ctx.db
+        .query("candidateDetails")
+        .withIndex("by_candidate", (q) => q.eq("candidateId", id))
+        .unique();
+      if (details)
+        await ctx.db.patch(details.jobId, {
+          status: "pending",
+          message: "Returned to the review queue.",
+          updatedAt: now,
+        });
+      count++;
+    }
+    return count;
   },
 });
 // Trust changes are restricted to the deployment operator, not public callers.

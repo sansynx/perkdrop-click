@@ -63,6 +63,9 @@ it("searches recent public results, normalizes URLs, excludes unsafe results, an
             { url: "http://127.0.0.1/internal" },
             { url: "file:///secret" },
             { url: "https://other.example/offer" },
+            {
+              url: "https://github.com/orgs/community/discussions/197557",
+            },
           ],
         },
       }),
@@ -74,7 +77,7 @@ it("searches recent public results, normalizes URLs, excludes unsafe results, an
   ).toEqual(["https://example.com/offer", "https://other.example/offer"]);
   const [, options] = fetch.mock.calls[0];
   expect(options.headers.Authorization).toBe("Bearer test-key");
-  expect(JSON.parse(options.body)).toMatchObject({ limit: 5, tbs: "qdr:m" });
+  expect(JSON.parse(options.body)).toMatchObject({ limit: 20, tbs: "qdr:m" });
 });
 
 it("rejects search failures instead of recording a successful empty search", async () => {
@@ -124,6 +127,66 @@ it("deduplicates against user submissions and makes enqueue replay safe", async 
   expect(
     jobs.find((j) => j.canonicalUrl.endsWith("/new"))?.discoveryRunId,
   ).toBe(run!._id);
+});
+
+it("skips www and query variants of a link already seen", async () => {
+  const t = setup();
+  await t.mutation(internal.discovery.initialize, {});
+  await t.mutation(internal.discovery.runScheduled, {});
+  const run = await t.run((ctx) => ctx.db.query("discoveryRuns").first());
+  await t.mutation(api.submissions.create, {
+    url: "https://example.com/pack",
+    anonymousId: "visitor-identifier-001",
+  });
+  await t.mutation(internal.discovery.enqueue, {
+    runId: run!._id,
+    urls: ["https://www.example.com/pack?utm_source=tweet"],
+  });
+  expect(await t.run((ctx) => ctx.db.get(run!._id))).toMatchObject({
+    queued: 0,
+    duplicates: 1,
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("intakeJobs").collect()),
+  ).toHaveLength(1);
+});
+
+it("matches legacy HTTP jobs before an identity has been recorded", async () => {
+  const t = setup();
+  const id = await t.run((ctx) =>
+    ctx.db.insert("intakeJobs", {
+      canonicalUrl: "http://example.com/offer",
+      status: "pending",
+      message: "",
+      createdAt: 1,
+      updatedAt: 1,
+    }),
+  );
+  expect(
+    await t.mutation(api.submissions.create, {
+      url: "https://example.com/offer",
+      anonymousId: "visitor-identifier-001",
+    }),
+  ).toEqual({ id, duplicate: true });
+});
+
+it("keeps distinct query values and case-sensitive paths as separate submissions", async () => {
+  const t = setup();
+  const ids = [];
+  for (const url of [
+    "https://example.com/offer",
+    "https://example.com/offer?tier=student",
+    "https://example.com/offer?tier=startup",
+    "https://example.com/Offer",
+  ]) {
+    const result = await t.mutation(api.submissions.create, {
+      url,
+      anonymousId: "visitor-identifier-001",
+    });
+    expect(result.duplicate).toBe(false);
+    ids.push(result.id);
+  }
+  expect(new Set(ids).size).toBe(4);
 });
 
 it("honors shared daily limits without reserving skipped URLs or charging domain quota", async () => {

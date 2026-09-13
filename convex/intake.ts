@@ -13,6 +13,7 @@ import {
   resolveProviderLogo,
   safeRewardImage,
 } from "./lib/intakePolicy";
+import { inferAudience, isOfferCategory } from "./lib/categories";
 
 export const offerValidator = v.object({
   category: v.optional(v.string()),
@@ -125,15 +126,7 @@ export const extract = internalAction({
     const expiry = Date.parse(string("expiryDate"));
     return {
       offer: {
-        category: [
-          "AI & APIs",
-          "Cloud & Hosting",
-          "Developer Tools",
-          "Domains",
-          "Education",
-          "Open Source",
-          "Startup",
-        ].includes(string("category"))
+        category: isOfferCategory(string("category"))
           ? string("category")
           : "Other",
         provider: string("provider", 100),
@@ -158,8 +151,13 @@ export const extract = internalAction({
         string("provider", 100),
         page.metadata?.favicon,
       ),
-      ...(safeRewardImage(page.metadata?.ogImage)
-        ? { imageUrl: safeRewardImage(page.metadata?.ogImage) }
+      ...(safeRewardImage(page.metadata?.ogImage, string("claimUrl", 2048))
+        ? {
+            imageUrl: safeRewardImage(
+              page.metadata?.ogImage,
+              string("claimUrl", 2048),
+            ),
+          }
         : {}),
     };
   },
@@ -286,32 +284,16 @@ export async function publish(
     .withIndex("by_resource", (q) => q.eq("resourceId", resourceId))
     .unique();
   const publication = {
-    audience: inferAudience(candidate.eligibility),
+    audience: candidate.audience ?? inferAudience(candidate.eligibility),
     resourceId,
     text: `${candidate.title} ${candidate.provider} ${candidate.description} ${candidate.eligibility.join(" ")}`,
     category: candidate.category,
     expiresAt: details?.expiresAt,
-    imageUrl: details?.imageUrl,
+    imageUrl: safeRewardImage(details?.imageUrl, claimUrl),
   };
   if (priorPublication) await ctx.db.patch(priorPublication._id, publication);
   else await ctx.db.insert("publishedOffers", publication);
   return resourceId;
-}
-
-function inferAudience(eligibility: string[]) {
-  const text = eligibility.join(" ").toLowerCase();
-  for (const [pattern, audience] of [
-    [/student/, "Students"],
-    [/startup|founder/, "Startups"],
-    [/open.source|maintainer/, "OSS"],
-    [/hackathon/, "Hackathons"],
-    [/research/, "Researchers"],
-    [/creator/, "Creators"],
-    [/developer/, "Developers"],
-    [/everyone|anyone|all users/, "Everyone"],
-  ] as const)
-    if (pattern.test(text)) return audience;
-  return "Other";
 }
 
 export const finish = internalMutation({
@@ -416,8 +398,8 @@ export const finish = internalMutation({
       jobId: args.jobId,
       reasons: review.reasons,
       ...(expiresAt ? { expiresAt } : {}),
-      ...(safeRewardImage(args.imageUrl)
-        ? { imageUrl: safeRewardImage(args.imageUrl) }
+      ...(safeRewardImage(args.imageUrl, args.offer.claimUrl)
+        ? { imageUrl: safeRewardImage(args.imageUrl, args.offer.claimUrl) }
         : {}),
     });
     if (key) await ctx.db.insert("offerKeys", { key, candidateId });

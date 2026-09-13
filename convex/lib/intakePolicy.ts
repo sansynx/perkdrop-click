@@ -24,6 +24,46 @@ export function canonicalUrl(input: string): string {
   url.searchParams.sort();
   return url.href;
 }
+export function urlIdentity(input: string): string {
+  const url = new URL(canonicalUrl(input));
+  const host = url.hostname.replace(/^www\./, "").toLowerCase();
+  const path = url.pathname.replace(/\/+$/, "") || "/";
+  return `${host}${path}${url.search}`;
+}
+export function urlVariants(input: string): string[] {
+  const canonical = canonicalUrl(input);
+  const url = new URL(canonical);
+  const hosts = new Set([
+    url.hostname,
+    url.hostname.replace(/^www\./, ""),
+    url.hostname.startsWith("www.") ? url.hostname : `www.${url.hostname}`,
+  ]);
+  const paths = new Set([
+    url.pathname,
+    url.pathname.replace(/\/+$/, "") || "/",
+    `${url.pathname.replace(/\/+$/, "")}/`,
+  ]);
+  const variants = new Set<string>();
+  for (const host of hosts) {
+    for (const path of paths) {
+      const copy = new URL(canonical);
+      copy.hostname = host;
+      copy.pathname = path;
+      variants.add(copy.href);
+      copy.protocol = copy.protocol === "https:" ? "http:" : "https:";
+      variants.add(copy.href);
+    }
+  }
+  return [...variants];
+}
+export function isLowValueDiscovery(input: string): boolean {
+  try {
+    const url = new URL(canonicalUrl(input));
+    return /\/(discussions|issues|pulls?|commits?|wiki)\b/i.test(url.pathname);
+  } catch {
+    return true;
+  }
+}
 export function isPerkdropHost(host: string) {
   const name = host.toLowerCase();
   return (
@@ -153,22 +193,28 @@ export function sourceFavicon(
   }
 }
 
-export function safeRewardImage(value: unknown): string | undefined {
-  if (typeof value !== "string" || value.length > 2048) return undefined;
+export function safeRewardImage(
+  value: unknown,
+  claimUrl?: string,
+): string | undefined {
+  if (typeof value !== "string" || value.length > 2048 || !claimUrl)
+    return undefined;
   try {
-    const url = new URL(value);
-    if (url.protocol !== "https:" || url.username || url.password || url.port)
-      return undefined;
+    const image = new URL(value);
+    const claim = new URL(canonicalUrl(claimUrl));
     if (
-      ![
-        "opengraph.githubassets.com",
-        "avatars.githubusercontent.com",
-        "resend.com",
-        "d2dmyh35ffsxbl.cloudfront.net",
-      ].includes(url.hostname)
+      image.protocol !== "https:" ||
+      image.username ||
+      image.password ||
+      image.port
     )
       return undefined;
-    return url.href;
+    const imageHost = image.hostname.replace(/^www\./, "").toLowerCase();
+    const claimHost = claim.hostname.replace(/^www\./, "").toLowerCase();
+    if (imageHost !== claimHost) return undefined;
+    if (/\/(discussions|issues|pulls?)\b/i.test(image.pathname))
+      return undefined;
+    return image.href;
   } catch {
     return undefined;
   }

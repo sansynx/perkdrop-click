@@ -17,6 +17,7 @@ import type * as email from "../email.js";
 import type * as http from "../http.js";
 import type * as intake from "../intake.js";
 import type * as lib_brandMark from "../lib/brandMark.js";
+import type * as lib_categories from "../lib/categories.js";
 import type * as lib_emailIntake from "../lib/emailIntake.js";
 import type * as lib_firecrawl from "../lib/firecrawl.js";
 import type * as lib_intakePolicy from "../lib/intakePolicy.js";
@@ -44,6 +45,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   intake: typeof intake;
   "lib/brandMark": typeof lib_brandMark;
+  "lib/categories": typeof lib_categories;
   "lib/emailIntake": typeof lib_emailIntake;
   "lib/firecrawl": typeof lib_firecrawl;
   "lib/intakePolicy": typeof lib_intakePolicy;

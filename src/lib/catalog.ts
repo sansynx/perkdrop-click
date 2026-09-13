@@ -1,3 +1,5 @@
+import { OFFER_AUDIENCES, OFFER_CATEGORIES } from "../../convex/lib/categories";
+
 export type Drop = {
   resourceId?: import("../../convex/_generated/dataModel").Id<"resources">;
   requiresApplication?: boolean;
@@ -24,23 +26,5 @@ export type Drop = {
   requiresCard?: boolean;
 };
 
-export const categories = [
-  "Everything",
-  "AI & APIs",
-  "Cloud & Hosting",
-  "Developer Tools",
-  "Domains",
-  "Education",
-  "Open Source",
-  "Startup",
-];
-export const audiences = [
-  "Everyone",
-  "Students",
-  "Developers",
-  "Startups",
-  "OSS",
-  "Hackathons",
-  "Creators",
-  "Researchers",
-];
+export const categories = ["Everything", ...OFFER_CATEGORIES];
+export const audiences = [...OFFER_AUDIENCES];

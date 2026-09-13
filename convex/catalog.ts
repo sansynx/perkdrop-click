@@ -2,7 +2,7 @@ import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { providerLogo } from "./lib/intakePolicy";
+import { providerLogo, safeRewardImage } from "./lib/intakePolicy";
 const dropValidator = v.object({
   resourceId: v.id("resources"),
   requiresApplication: v.boolean(),
@@ -74,7 +74,9 @@ async function display(
     confirmed: `${row.confirmedCount ?? 0} community confirmations`,
     requiresCard: row.requiresCard,
     claimUrl,
-    ...(publishedRow?.imageUrl ? { imageUrl: publishedRow.imageUrl } : {}),
+    ...(safeRewardImage(publishedRow?.imageUrl, claimUrl)
+      ? { imageUrl: safeRewardImage(publishedRow?.imageUrl, claimUrl) }
+      : {}),
     ...(row.expiresAt
       ? {
           expires: `Ends ${new Date(row.expiresAt).toISOString().slice(0, 10)}`,

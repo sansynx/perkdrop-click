@@ -3,7 +3,12 @@ import { internalAction, internalMutation } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { workflow } from "./workflows";
-import { canonicalUrl, isPerkdropHost } from "./lib/intakePolicy";
+import {
+  canonicalUrl,
+  isLowValueDiscovery,
+  isPerkdropHost,
+  urlIdentity,
+} from "./lib/intakePolicy";
 import { enqueueIntake } from "./submissions";
 
 const defaults = [
@@ -98,7 +103,7 @@ export const search = internalAction({
       "/search",
       {
         query: query.slice(0, 500),
-        limit: 5,
+        limit: 20,
         sources: ["web"],
         excludeDomains: [
           "facebook.com",
@@ -115,10 +120,16 @@ export const search = internalAction({
     if (payload.success !== true || !Array.isArray(payload.data?.web))
       throw new Error("Invalid discovery search response");
     const urls = new Set<string>();
-    for (const item of payload.data.web.slice(0, 5)) {
+    const identities = new Set<string>();
+    for (const item of payload.data.web.slice(0, 20)) {
       if (typeof item?.url !== "string") continue;
       try {
-        urls.add(canonicalUrl(item.url));
+        const url = canonicalUrl(item.url);
+        if (isLowValueDiscovery(url)) continue;
+        const identity = urlIdentity(url);
+        if (identities.has(identity)) continue;
+        identities.add(identity);
+        urls.add(url);
       } catch {
         /* Exclude unsafe results before extraction. */
       }
@@ -136,8 +147,12 @@ export const enqueue = internalMutation({
     let queued = 0,
       duplicates = 0,
       limited = 0;
-    for (const url of [...new Set(urls)].slice(0, 5)) {
-      if (isPerkdropHost(new URL(url).hostname)) continue;
+    for (const url of [...new Set(urls)]) {
+      if (isPerkdropHost(new URL(url).hostname) || isLowValueDiscovery(url)) {
+        duplicates++;
+        continue;
+      }
+      if (queued >= 5) continue;
       const result = await enqueueIntake(ctx, url, undefined, runId);
       if (!result) limited++;
       else if (result.duplicate) duplicates++;
