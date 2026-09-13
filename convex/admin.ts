@@ -58,12 +58,14 @@ export const discoveryStatus = query({
   }),
   handler: async (ctx, { token }) => {
     authorize(token);
-    const searches = await ctx.db.query("discoveryQueries").take(20);
-    const runs = await ctx.db
-      .query("discoveryRuns")
-      .withIndex("by_started")
-      .order("desc")
-      .take(8);
+    const [searches, runs] = await Promise.all([
+      ctx.db.query("discoveryQueries").take(20),
+      ctx.db
+        .query("discoveryRuns")
+        .withIndex("by_started")
+        .order("desc")
+        .take(8),
+    ]);
     return {
       enabled: process.env.DISCOVERY_ENABLED === "true",
       searches: searches.map(
@@ -242,11 +244,12 @@ export const decide = mutation({
       (args.audiences?.length ?? 0) > 20
     )
       throw new Error("Choose placement for at most 20 offers");
+    const selectedIds = new Set(args.ids);
     for (const item of args.categories ?? [])
-      if (!args.ids.includes(item.id) || !isOfferCategory(item.category))
+      if (!selectedIds.has(item.id) || !isOfferCategory(item.category))
         throw new Error("Choose a catalog category for a selected offer");
     for (const item of args.audiences ?? [])
-      if (!args.ids.includes(item.id) || !isOfferAudience(item.audience))
+      if (!selectedIds.has(item.id) || !isOfferAudience(item.audience))
         throw new Error("Choose an audience for a selected offer");
     const chosen = new Map(
       (args.categories ?? []).map((item) => [item.id, item.category]),
@@ -408,6 +411,14 @@ export const liveOffers = query({
         ...args.paginationOpts,
         numItems: Math.min(20, Math.max(1, args.paginationOpts.numItems)),
       });
+    const hydrated = await Promise.all(
+      result.page.map(async (row) => {
+        const resource = await ctx.db.get(row.resourceId);
+        if (!resource || resource.status !== "active") return null;
+        const provider = await ctx.db.get(resource.providerId);
+        return { row, resource, provider };
+      }),
+    );
     const page: {
       resourceId: Id<"resources">;
       slug: string;
@@ -417,10 +428,9 @@ export const liveOffers = query({
       audience: string;
       claimUrl: string;
     }[] = [];
-    for (const row of result.page) {
-      const resource = await ctx.db.get(row.resourceId);
-      if (!resource || resource.status !== "active") continue;
-      const provider = await ctx.db.get(resource.providerId);
+    for (const entry of hydrated) {
+      if (!entry) continue;
+      const { row, resource, provider } = entry;
       page.push({
         resourceId: resource._id,
         slug: resource.slug,
@@ -537,32 +547,35 @@ export const reopen = mutation({
     authorize(args.token);
     if (!args.ids.length || args.ids.length > 20)
       throw new Error("Select 1–20 rejected offers");
-    let count = 0;
     const now = Date.now();
-    for (const id of new Set(args.ids)) {
-      const candidate = await ctx.db.get(id);
-      if (!candidate || candidate.status !== "rejected") continue;
-      await ctx.db.patch(id, { status: "pending", reviewedAt: now });
-      await ctx.db.insert("reviewAudit", {
-        candidateId: id,
-        decision: "reopened",
-        reason: "Returned to review.",
-        actor: "administrator",
-        createdAt: now,
-      });
-      const details = await ctx.db
-        .query("candidateDetails")
-        .withIndex("by_candidate", (q) => q.eq("candidateId", id))
-        .unique();
-      if (details)
-        await ctx.db.patch(details.jobId, {
-          status: "pending",
-          message: "Returned to the review queue.",
-          updatedAt: now,
+    const uniqueIds = [...new Set(args.ids)];
+    const candidates = await Promise.all(uniqueIds.map((id) => ctx.db.get(id)));
+    const reopened = await Promise.all(
+      uniqueIds.map(async (id, index) => {
+        const candidate = candidates[index];
+        if (!candidate || candidate.status !== "rejected") return false;
+        await ctx.db.patch(id, { status: "pending", reviewedAt: now });
+        await ctx.db.insert("reviewAudit", {
+          candidateId: id,
+          decision: "reopened",
+          reason: "Returned to review.",
+          actor: "administrator",
+          createdAt: now,
         });
-      count++;
-    }
-    return count;
+        const details = await ctx.db
+          .query("candidateDetails")
+          .withIndex("by_candidate", (q) => q.eq("candidateId", id))
+          .unique();
+        if (details)
+          await ctx.db.patch(details.jobId, {
+            status: "pending",
+            message: "Returned to the review queue.",
+            updatedAt: now,
+          });
+        return true;
+      }),
+    );
+    return reopened.filter(Boolean).length;
   },
 });
 // Trust changes are restricted to the deployment operator, not public callers.

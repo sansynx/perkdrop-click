@@ -31,14 +31,11 @@ export function PerkdropApp({
   const [category, setCategory] = useState("Everything");
   const [audience, setAudience] = useState("Everyone");
   const [tab, setTab] = useState("All perks");
-  const change = (update: () => void) => update();
   const chooseCollection = (value: string) => {
-    change(() => {
-      setCategory(value);
-      setQuery("");
-      setAudience("Everyone");
-      setTab("All perks");
-    });
+    setCategory(value);
+    setQuery("");
+    setAudience("Everyone");
+    setTab("All perks");
     document.getElementById("feed")?.scrollIntoView({ behavior: "smooth" });
   };
 
@@ -138,7 +135,7 @@ export function PerkdropApp({
                   key={item}
                   aria-pressed={tab === item}
                   className={tab === item ? "active" : ""}
-                  onClick={() => change(() => setTab(item))}
+                  onClick={() => setTab(item)}
                 >
                   {item === "Ending soon" && <Clock size={15} />} {item}
                 </button>
@@ -159,10 +156,7 @@ export function PerkdropApp({
                 placeholder="Search perks..."
               />
               {query && (
-                <button
-                  aria-label="Clear search"
-                  onClick={() => change(() => setQuery(""))}
-                >
+                <button aria-label="Clear search" onClick={() => setQuery("")}>
                   <X size={15} />
                 </button>
               )}
@@ -174,7 +168,7 @@ export function PerkdropApp({
                 aria-label="Category"
                 onChange={(event) => {
                   const value = event.target.value;
-                  change(() => setCategory(value));
+                  setCategory(value);
                 }}
               >
                 {categories.map((item) => (
@@ -189,7 +183,7 @@ export function PerkdropApp({
                 aria-label="Audience"
                 onChange={(event) => {
                   const value = event.target.value;
-                  change(() => setAudience(value));
+                  setAudience(value);
                 }}
               >
                 {audiences.map((item) => (

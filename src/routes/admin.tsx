@@ -13,21 +13,28 @@ import {
   catalogCategory,
 } from "../../convex/lib/categories";
 
+const adminDateFormatter = new Intl.DateTimeFormat("en-IN", {
+  dateStyle: "medium",
+  timeStyle: "short",
+  timeZone: "Asia/Kolkata",
+});
+
 export const Route = createFileRoute("/admin")({ component: AdminPage });
-function AdminPage() {
+
+type ReviewStatus = "pending" | "approved" | "rejected";
+type QueueResult = FunctionReturnType<typeof api.admin.queue>;
+
+function useAdminController() {
   const [token, setToken] = useState("");
-  const [result, setResult] = useState<FunctionReturnType<
-    typeof api.admin.queue
-  > | null>(null);
+  const [result, setResult] = useState<QueueResult | null>(null);
   const [selected, setSelected] = useState<Id<"resourceCandidates">[]>([]);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState<"pending" | "approved" | "rejected">(
-    "pending",
-  );
+  const [status, setStatus] = useState<ReviewStatus>("pending");
   const [categories, setCategories] = useState<Record<string, string>>({});
   const [audiences, setAudiences] = useState<Record<string, string>>({});
+  const selectedIds = new Set(selected);
   async function load(cursor: string | null = null, nextStatus = status) {
     if (!backend) {
       setError("Backend is not configured.");
@@ -108,6 +115,53 @@ function AdminPage() {
       setBusy(false);
     }
   }
+  return {
+    audiences,
+    busy,
+    categories,
+    decide,
+    error,
+    load,
+    reason,
+    reopen,
+    result,
+    selected,
+    selectedIds,
+    setAudiences,
+    setCategories,
+    setError,
+    setReason,
+    setResult,
+    setSelected,
+    setToken,
+    status,
+    token,
+  };
+}
+
+function AdminPage() {
+  const {
+    audiences,
+    busy,
+    categories,
+    decide,
+    error,
+    load,
+    reason,
+    reopen,
+    result,
+    selected,
+    selectedIds,
+    setAudiences,
+    setCategories,
+    setError,
+    setReason,
+    setResult,
+    setSelected,
+    setToken,
+    status,
+    token,
+  } = useAdminController();
   return (
     <div className="app-shell admin-shell">
       <header className="admin-header">
@@ -234,7 +288,7 @@ function AdminPage() {
                   <input
                     aria-label={`Select ${item.title}`}
                     type="checkbox"
-                    checked={selected.includes(item.id)}
+                    checked={selectedIds.has(item.id)}
                     onChange={(event) =>
                       setSelected(
                         event.target.checked
@@ -626,7 +680,8 @@ function DiscoveryStatus({ token }: { token: string }) {
               <div className="candidate-copy">
                 <h3>{run.query}</h3>
                 <p>
-                  {new Date(run.startedAt).toLocaleString()} · {run.status}
+                  {adminDateFormatter.format(new Date(run.startedAt))} ·{" "}
+                  {run.status}
                 </p>
                 <p>
                   {run.found} found · {run.queued} queued · {run.duplicates}{" "}

@@ -143,7 +143,6 @@ export const onMessageReceived = internalMutation({
       html:
         stringField(message, "html") ?? stringField(message, "extracted_html"),
     });
-    if (!from || !inboxId) return null;
     if (!result.receipts.length && !result.unavailable && result.urls === 0)
       return null;
     if (!(await reserveReceipt(ctx, from))) return null;
