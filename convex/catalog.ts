@@ -28,20 +28,66 @@ const dropValidator = v.object({
   claimUrl: v.string(),
   imageUrl: v.optional(v.string()),
 });
+function cardFromPublication(
+  row: Doc<"resources">,
+  published: Doc<"publishedOffers">,
+) {
+  if (!published.title || !published.slug || !published.claimUrl) return null;
+  const claimUrl = published.claimUrl;
+  const provider = published.provider ?? "Independent provider";
+  return {
+    resourceId: row._id,
+    requiresApplication:
+      published.requiresApplication ?? row.requiresApplication,
+    requirements: published.requirements ?? [],
+    slug: published.slug,
+    provider,
+    providerMark: provider.slice(0, 2).toUpperCase(),
+    logoUrl: published.logoUrl ?? providerLogo(claimUrl, provider) ?? "",
+    title: published.title,
+    description: published.description ?? row.description,
+    value: published.valueText?.trim() || row.valueText?.trim() || "See offer",
+    category: published.category || row.category,
+    resourceType: row.resourceType,
+    eligibility: published.eligibility || "Check source",
+    region: published.region || "Check source",
+    source: claimUrl,
+    sourceType: "Verified submission",
+    ago: "Published",
+    claimed: `${row.claimedCount ?? 0} claimed`,
+    confirmed: `${row.confirmedCount ?? 0} community confirmations`,
+    requiresCard: published.requiresCard ?? row.requiresCard,
+    claimUrl,
+    ...(safeRewardImage(published.imageUrl, claimUrl)
+      ? { imageUrl: safeRewardImage(published.imageUrl, claimUrl) }
+      : {}),
+    ...(row.expiresAt
+      ? {
+          expires: `Ends ${new Date(row.expiresAt).toISOString().slice(0, 10)}`,
+        }
+      : {}),
+  };
+}
+
 async function display(
   ctx: QueryCtx,
   row: Doc<"resources">,
   published?: Doc<"publishedOffers"> | null,
 ) {
-  const claimUrl = row.resolvedClaimUrl ?? row.originalClaimUrl ?? "";
-  const [provider, publishedRow, version, source] = await Promise.all([
-    ctx.db.get(row.providerId),
+  const publishedRow =
     published === undefined
-      ? ctx.db
+      ? await ctx.db
           .query("publishedOffers")
           .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
           .unique()
-      : Promise.resolve(published),
+      : published;
+  if (publishedRow) {
+    const card = cardFromPublication(row, publishedRow);
+    if (card) return card;
+  }
+  const claimUrl = row.resolvedClaimUrl ?? row.originalClaimUrl ?? "";
+  const [provider, version, source] = await Promise.all([
+    ctx.db.get(row.providerId),
     ctx.db
       .query("resourceVersions")
       .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
@@ -62,7 +108,7 @@ async function display(
     logoUrl: provider?.logoUrl ?? providerLogo(claimUrl, provider?.name) ?? "",
     title: row.title,
     description: row.description,
-    value: row.valueText ?? "See offer",
+    value: row.valueText?.trim() || "See offer",
     category: row.category,
     resourceType: row.resourceType,
     eligibility: version?.eligibility.join(", ") || "Check source",
@@ -101,17 +147,23 @@ export const page = query({
     const search = args.search.trim().slice(0, 200);
     let query = search
       ? ctx.db.query("publishedOffers").withSearchIndex("search_text", (q) => {
-          const match = q.search("text", search);
-          return args.category === "Everything"
-            ? match
-            : match.eq("category", args.category);
+          let match = q.search("text", search);
+          if (args.category !== "Everything")
+            match = match.eq("category", args.category);
+          if (args.endingSoon) match = match.eq("endingSoon", true);
+          return match;
         })
-      : args.category === "Everything"
-        ? ctx.db.query("publishedOffers").order("desc")
-        : ctx.db
+      : args.endingSoon && args.category === "Everything"
+        ? ctx.db
             .query("publishedOffers")
-            .withIndex("by_category", (q) => q.eq("category", args.category))
-            .order("desc");
+            .withIndex("by_endingSoon", (q) => q.eq("endingSoon", true))
+            .order("desc")
+        : args.category === "Everything"
+          ? ctx.db.query("publishedOffers").order("desc")
+          : ctx.db
+              .query("publishedOffers")
+              .withIndex("by_category", (q) => q.eq("category", args.category))
+              .order("desc");
     if (args.audience && args.audience !== "Everyone")
       query = query.filter((q) =>
         q.or(
@@ -119,13 +171,8 @@ export const page = query({
           q.eq(q.field("audience"), "Everyone"),
         ),
       );
-    if (args.endingSoon)
-      query = query.filter((q) =>
-        q.and(
-          q.gt(q.field("expiresAt"), Date.now()),
-          q.lte(q.field("expiresAt"), Date.now() + 14 * 86400000),
-        ),
-      );
+    if (args.endingSoon && args.category !== "Everything" && !search)
+      query = query.filter((q) => q.eq(q.field("endingSoon"), true));
     const result = await query.paginate({
       ...args.paginationOpts,
       numItems: 5,
@@ -138,12 +185,7 @@ export const page = query({
       await Promise.all(
         result.page.map((published, index) => {
           const row = resources[index];
-          if (
-            !row ||
-            row.status !== "active" ||
-            (row.expiresAt && row.expiresAt <= Date.now())
-          )
-            return null;
+          if (!row || row.status !== "active") return null;
           return display(ctx, row, published);
         }),
       )

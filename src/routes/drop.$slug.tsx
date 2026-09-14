@@ -103,8 +103,11 @@ function Detail({ drop }: { drop?: Drop }) {
                 <section className="detail-section">
                   <h2>What's included</h2>
                   <p>
-                    {drop.description} The listed value is{" "}
-                    {drop.value.toLowerCase()}.
+                    {drop.description}
+                    {drop.value.trim() &&
+                    drop.value.trim().toLowerCase() !== "see offer"
+                      ? ` The listed value is ${drop.value.toLowerCase()}.`
+                      : ""}
                   </p>
                 </section>
                 <section className="detail-section">
@@ -181,7 +184,7 @@ function Detail({ drop }: { drop?: Drop }) {
                   </button>
                 )}
                 <p>
-                  Check the provider’s current eligibility and terms before
+                  Check the provider's current eligibility and terms before
                   claiming.
                 </p>
               </aside>

@@ -38,6 +38,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+it("accepts AgentMail inbox ids that are not the intake address", async () => {
+  const t = setup();
+  vi.stubEnv("AGENTMAIL_INBOX_ID", "in_inbox");
+  await t.mutation(internal.email.onMessageReceived, {
+    eventId: "inbox-id",
+    thread: {},
+    message: {
+      from: "founder@example.com",
+      inbox_id: "in_inbox",
+      text: "https://example.com/inbox-id-offer",
+    },
+  });
+  expect(
+    await t.run((ctx) => ctx.db.query("intakeJobs").collect()),
+  ).toHaveLength(1);
+});
+
 it("ignores mail received by a different inbox", async () => {
   const t = setup();
   await t.mutation(internal.email.onMessageReceived, {

@@ -13,18 +13,21 @@ it("rejects the public demo credential at production admin boundaries", async ()
   );
   const t = convexTest(schema, modules);
   await expect(
+    t.mutation(api.admin.startSession, { token: DEMO_CREDENTIAL }),
+  ).rejects.toThrow("Administrator access required");
+  await expect(
     t.query(api.admin.queue, {
-      token: DEMO_CREDENTIAL,
+      session: DEMO_CREDENTIAL,
       status: "pending",
       paginationOpts: { cursor: null, numItems: 20 },
     }),
   ).rejects.toThrow("Administrator access required");
   await expect(
-    t.query(api.admin.discoveryStatus, { token: DEMO_CREDENTIAL }),
+    t.query(api.admin.discoveryStatus, { session: DEMO_CREDENTIAL }),
   ).rejects.toThrow("Administrator access required");
   await expect(
     t.mutation(api.admin.decide, {
-      token: DEMO_CREDENTIAL,
+      session: DEMO_CREDENTIAL,
       ids: [],
       decision: "approved",
       reason: "Demo attempt",
@@ -32,11 +35,14 @@ it("rejects the public demo credential at production admin boundaries", async ()
   ).rejects.toThrow("Administrator access required");
   await expect(
     t.query(api.admin.liveOffers, {
-      token: DEMO_CREDENTIAL,
+      session: DEMO_CREDENTIAL,
       paginationOpts: { cursor: null, numItems: 10 },
     }),
   ).rejects.toThrow("Administrator access required");
   expect(
     await t.run((ctx) => ctx.db.query("publishedOffers").collect()),
+  ).toHaveLength(0);
+  expect(
+    await t.run((ctx) => ctx.db.query("adminSessions").collect()),
   ).toHaveLength(0);
 });

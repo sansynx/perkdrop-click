@@ -8,9 +8,24 @@ crons.interval(
   internal.lifecycle.cleanupLimits,
 );
 crons.interval(
+  "clean expired admin sessions",
+  { hours: 1 },
+  internal.lifecycle.cleanupSessions,
+);
+crons.interval(
   "expire stale resources",
   { hours: 1 },
   internal.lifecycle.processExpiry,
+);
+crons.interval(
+  "mark ending soon offers",
+  { hours: 1 },
+  internal.lifecycle.markEndingSoon,
+);
+crons.interval(
+  "trim discovery and check history",
+  { hours: 1 },
+  internal.lifecycle.cleanupHistory,
 );
 crons.cron(
   "discover new resources",

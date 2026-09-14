@@ -289,7 +289,24 @@ export async function publish(
     text: `${candidate.title} ${candidate.provider} ${candidate.description} ${candidate.eligibility.join(" ")}`,
     category: candidate.category,
     expiresAt: details?.expiresAt,
+    endingSoon: Boolean(
+      details?.expiresAt &&
+      details.expiresAt > now &&
+      details.expiresAt <= now + 14 * 86400000,
+    ),
     imageUrl: safeRewardImage(details?.imageUrl, claimUrl),
+    slug: fields.slug,
+    title: candidate.title,
+    provider: candidate.provider,
+    logoUrl: logoUrl ?? provider?.logoUrl,
+    description: candidate.description,
+    valueText: candidate.valueText,
+    eligibility: candidate.eligibility.join(", ") || "Check source",
+    region: candidate.regions.join(", ") || "Check source",
+    claimUrl,
+    requiresCard: candidate.requiresCard,
+    requiresApplication: candidate.requiresApplication,
+    requirements: candidate.requirements,
   };
   if (priorPublication) await ctx.db.patch(priorPublication._id, publication);
   else await ctx.db.insert("publishedOffers", publication);
@@ -334,11 +351,10 @@ export const finish = internalMutation({
         const sourceUrl = canonicalUrl(args.url);
         const previous = await ctx.db
           .query("resourceSources")
-          .withIndex("by_resource", (q) =>
-            q.eq("resourceId", details.resourceId!),
+          .withIndex("by_resource_url", (q) =>
+            q.eq("resourceId", details.resourceId!).eq("sourceUrl", sourceUrl),
           )
-          .filter((q) => q.eq(q.field("sourceUrl"), sourceUrl))
-          .first();
+          .unique();
         if (!previous)
           await ctx.db.insert("resourceSources", {
             resourceId: details.resourceId,
@@ -350,6 +366,24 @@ export const finish = internalMutation({
             lastCheckedAt: now,
             createdAt: now,
           });
+        const expiresAt = args.offer.expiresAt;
+        if (expiresAt) {
+          await ctx.db.patch(details.resourceId, {
+            expiresAt,
+            updatedAt: now,
+          });
+          const published = await ctx.db
+            .query("publishedOffers")
+            .withIndex("by_resource", (q) =>
+              q.eq("resourceId", details.resourceId!),
+            )
+            .unique();
+          if (published)
+            await ctx.db.patch(published._id, {
+              expiresAt,
+              endingSoon: expiresAt > now && expiresAt <= now + 14 * 86400000,
+            });
+        }
       }
       await ctx.db.patch(args.jobId, {
         candidateId: existing.candidateId,
@@ -426,13 +460,15 @@ export const finish = internalMutation({
   },
 });
 export const fail = internalMutation({
-  args: { jobId: v.id("intakeJobs") },
+  args: { jobId: v.id("intakeJobs"), message: v.optional(v.string()) },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const detail = args.message?.replace(/\s+/g, " ").trim().slice(0, 180);
     await ctx.db.patch(args.jobId, {
       status: "failed",
-      message:
-        "We could not verify this source after retries. An administrator can retry it.",
+      message: detail
+        ? `We could not verify this source after retries. ${detail}`
+        : "We could not verify this source after retries. An administrator can retry it.",
       updatedAt: Date.now(),
     });
     return null;

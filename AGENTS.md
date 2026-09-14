@@ -48,18 +48,20 @@ Tests sit next to the modules they cover.
 
 Distinguish implemented runtime behavior from development tools.
 
-| Sponsor   | What it does here                                                                                                                             | What it does not do                                                                 |
-| --------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Convex    | Database, queries, mutations, actions, crons, scheduled functions, live queries, HTTP routes, workflows, `@agentmail/convex`                  | The chatgpt.site frontend is not Convex static hosting. A Workers copy also exists. |
-| Firecrawl | Scheduled search across Devpost, student packs, hackathons, cloud credits, and related perk topics, plus structured extraction of offer pages | It does not publish offers by itself.                                               |
-| AgentMail | Inbound `message.received` webhook, URL intake, HTML receipt from a parent Convex action                                                      | Receipt is not publication. Inbox contents are not a public API.                    |
-| OpenAI    | Codex during development and ChatGPT Sites hosting                                                                                            | No OpenAI model API call in the application.                                        |
+| Sponsor   | What it does here                                                                                                            | What it does not do                                                                 |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Convex    | Database, queries, mutations, actions, crons, scheduled functions, live queries, HTTP routes, workflows, `@agentmail/convex` | The chatgpt.site frontend is not Convex static hosting. A Workers copy also exists. |
+| Firecrawl | Scheduled search from product intents and published-offer hosts, plus structured extraction of offer pages                   | It does not publish offers by itself.                                               |
+| AgentMail | Inbound `message.received` webhook, URL intake, HTML receipt from a parent Convex action                                     | Receipt is not publication. Inbox contents are not a public API.                    |
+| OpenAI    | Codex during development and ChatGPT Sites hosting                                                                           | No OpenAI model API call in the application.                                        |
 
 WebMCP is a separate experimental browser API, not an OpenAI service integration.
 
-Admin authorization is a server-checked token, not Convex Auth. Anonymous
-public submissions are allowed and rate-limited. Do not treat the public
-backend URL as permission to perform administrative writes.
+Admin authorization is a server-checked operator token exchanged for a
+hashed 12-hour session. The token is not passed on live queries. AllGas2026
+never starts a production session. Anonymous public submissions are allowed
+and rate-limited. Do not treat the public backend URL as permission to
+perform administrative writes.
 
 ## Public URLs versus secrets
 
@@ -82,9 +84,9 @@ Keep private: `ADMIN_REVIEW_TOKEN`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`,
 3. Approve or reject a demo card with a reason. Reload to reset.
 4. Open `/submit` and inspect the URL form. Forwarded-mail copy appears when
    Convex has `AGENTMAIL_INTAKE_ADDRESS`.
-
-Do not ask this repo for the production admin token. Production `/admin` is
-intentionally closed.
+5. Production `/admin` asks for the private token once, then uses a tab session.
+   Production `/admin` is intentionally closed. Do not ask this repo for that
+   token.
 
 ## Checks
 

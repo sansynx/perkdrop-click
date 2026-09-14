@@ -16,8 +16,8 @@ file. Product setup is in [README.md](README.md).
 - **Components:** @convex-dev/workflow, @agentmail/convex
 - **Convex features:** schema, tables, indexes, full-text search, queries,
   mutations, actions, crons, scheduled functions, realtime queries
-- **Auth:** Other, server-validated administrator token; anonymous public
-  submissions
+- **Auth:** Other, operator token exchanged for a hashed 12-hour admin session;
+  anonymous public submissions
 - **AI models:** none explicitly configured; Firecrawl performs structured
   extraction
 - **Started:** 2026-09-09T14:51:40Z
@@ -35,12 +35,14 @@ repository is public. Making GitHub public does not start or stop searches.
    `DISCOVERY_ENABLED=true`, a configured Firecrawl key, and enabled search
    records.
 2. [convex/discovery.ts](convex/discovery.ts) starts every enabled search that
-   is due. Default topics include Devpost hackathon resources, MLH, student
-   packs, cloud credits, open-source sponsorships, and startup perks. Missing
-   default queries are inserted on the next scheduled run. Firecrawl searches
-   the public web with a past-month filter and up to 100 results per query.
-   Already-seen URLs are skipped. Public submission rate limits do not apply to
-   this scheduled path.
+   is due. Explore searches are five product intents (credits, students,
+   hackathons, startups, open source). Exploit searches use hosts from published
+   offers and trusted pages, scoped to a path on broad domains. Source searches
+   rotate eight at a time. Leftover vendor strings are disabled. Firecrawl
+   searches the public web with a past-month filter and up to 20 results per
+   query. A daily discovery budget shares Firecrawl spend across those runs.
+   Already-seen URLs are skipped. Public domain and global caps do not apply to
+   this scheduled path. Discovery has its own daily budget.
 3. URL normalization and deduplication feed the extraction workflow. Structured
    offer keys merge matching offers; this does not detect every differently
    worded duplicate.

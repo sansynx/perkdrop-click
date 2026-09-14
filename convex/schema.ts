@@ -33,13 +33,28 @@ export default defineSchema({
     text: v.string(),
     category: v.string(),
     expiresAt: v.optional(v.number()),
+    endingSoon: v.optional(v.boolean()),
     imageUrl: v.optional(v.string()),
+    slug: v.optional(v.string()),
+    title: v.optional(v.string()),
+    provider: v.optional(v.string()),
+    logoUrl: v.optional(v.string()),
+    description: v.optional(v.string()),
+    valueText: v.optional(v.string()),
+    eligibility: v.optional(v.string()),
+    region: v.optional(v.string()),
+    claimUrl: v.optional(v.string()),
+    requiresCard: v.optional(v.boolean()),
+    requiresApplication: v.optional(v.boolean()),
+    requirements: v.optional(v.array(v.string())),
   })
     .index("by_resource", ["resourceId"])
     .index("by_category", ["category"])
+    .index("by_endingSoon", ["endingSoon"])
+    .index("by_expiresAt", ["expiresAt"])
     .searchIndex("search_text", {
       searchField: "text",
-      filterFields: ["category"],
+      filterFields: ["category", "endingSoon"],
     }),
   intakeJobs: defineTable({
     discoveryRunId: v.optional(v.id("discoveryRuns")),
@@ -144,7 +159,9 @@ export default defineSchema({
     firstSeenAt: v.number(),
     lastCheckedAt: v.number(),
     createdAt: v.number(),
-  }).index("by_resource", ["resourceId"]),
+  })
+    .index("by_resource", ["resourceId"])
+    .index("by_resource_url", ["resourceId", "sourceUrl"]),
   resourceReactions: defineTable({
     resourceId: v.id("resources"),
     reactionType,
@@ -168,7 +185,9 @@ export default defineSchema({
     result: v.string(),
     changeSummary: v.optional(v.string()),
     error: v.optional(v.string()),
-  }).index("by_resource", ["resourceId"]),
+  })
+    .index("by_resource", ["resourceId"])
+    .index("by_checkedAt", ["checkedAt"]),
   resourceVersions: defineTable({
     resourceId: v.id("resources"),
     valueText: v.optional(v.string()),
@@ -203,13 +222,24 @@ export default defineSchema({
     createdAt: v.number(),
     reviewedAt: v.optional(v.number()),
   }).index("by_status", ["status"]),
+  adminSessions: defineTable({
+    hash: v.string(),
+    expiresAt: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_hash", ["hash"])
+    .index("by_expiry", ["expiresAt"]),
   discoveryQueries: defineTable({
     query: v.string(),
     enabled: v.boolean(),
     cadenceHours: v.number(),
     lastRunAt: v.optional(v.number()),
     createdAt: v.number(),
-  }).index("by_enabled", ["enabled"]),
+    key: v.optional(v.string()),
+    kind: v.optional(v.union(v.literal("intent"), v.literal("source"))),
+  })
+    .index("by_enabled", ["enabled"])
+    .index("by_key", ["key"]),
   discoveryRuns: defineTable({
     queryId: v.id("discoveryQueries"),
     query: v.string(),
@@ -231,16 +261,4 @@ export default defineSchema({
     jobId: v.id("intakeJobs"),
     createdAt: v.number(),
   }).index("by_identity", ["identity"]),
-  submissions: defineTable({
-    url: v.string(),
-    anonymousId: v.string(),
-    status: v.union(
-      v.literal("queued"),
-      v.literal("processing"),
-      v.literal("candidate"),
-      v.literal("rejected"),
-    ),
-    candidateId: v.optional(v.id("resourceCandidates")),
-    createdAt: v.number(),
-  }).index("by_status", ["status"]),
 });

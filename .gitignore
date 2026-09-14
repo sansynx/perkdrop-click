@@ -18,3 +18,5 @@ todos.json
 .firecrawl/
 .dev.vars*
 coverage/
+.burr/
+.local/

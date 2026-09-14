@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import type { FunctionReturnType } from "convex/server";
 import type { Id } from "../../convex/_generated/dataModel";
@@ -13,6 +13,17 @@ import {
   catalogCategory,
 } from "../../convex/lib/categories";
 
+const SESSION_KEY = "perkdrop-admin-session";
+
+function readStoredSession() {
+  try {
+    const saved = sessionStorage.getItem(SESSION_KEY);
+    return saved && /^[a-f0-9]{64}$/.test(saved) ? saved : "";
+  } catch {
+    return "";
+  }
+}
+
 const adminDateFormatter = new Intl.DateTimeFormat("en-IN", {
   dateStyle: "medium",
   timeStyle: "short",
@@ -26,6 +37,7 @@ type QueueResult = FunctionReturnType<typeof api.admin.queue>;
 
 function useAdminController() {
   const [token, setToken] = useState("");
+  const [session, setSession] = useState(readStoredSession);
   const [result, setResult] = useState<QueueResult | null>(null);
   const [selected, setSelected] = useState<Id<"resourceCandidates">[]>([]);
   const [reason, setReason] = useState("");
@@ -35,6 +47,17 @@ function useAdminController() {
   const [categories, setCategories] = useState<Record<string, string>>({});
   const [audiences, setAudiences] = useState<Record<string, string>>({});
   const selectedIds = new Set(selected);
+  async function openSession() {
+    if (!backend) throw new Error("Backend is not configured.");
+    if (session) return session;
+    const started = await backend.mutation(api.admin.startSession, {
+      token: token.trim(),
+    });
+    sessionStorage.setItem(SESSION_KEY, started.session);
+    setSession(started.session);
+    setToken("");
+    return started.session;
+  }
   async function load(cursor: string | null = null, nextStatus = status) {
     if (!backend) {
       setError("Backend is not configured.");
@@ -43,13 +66,13 @@ function useAdminController() {
     setBusy(true);
     setError("");
     try {
+      const active = await openSession();
       const page = await backend.query(api.admin.queue, {
-        token: token.trim(),
+        session: active,
         status: nextStatus,
         paginationOpts: { cursor, numItems: 20 },
       });
       setResult(page);
-      setToken(token.trim());
       setStatus(nextStatus);
       setSelected([]);
       setCategories((current) => {
@@ -65,6 +88,9 @@ function useAdminController() {
         return next;
       });
     } catch {
+      sessionStorage.removeItem(SESSION_KEY);
+      setSession("");
+      setResult(null);
       setError(
         "Cannot open the queue. Check administrator access and the backend connection.",
       );
@@ -73,12 +99,12 @@ function useAdminController() {
     }
   }
   async function decide(decision: "approved" | "rejected", ids = selected) {
-    if (!backend || !ids.length) return;
+    if (!backend || !ids.length || !session) return;
     setBusy(true);
     setError("");
     try {
       await backend.mutation(api.admin.decide, {
-        token,
+        session,
         ids,
         decision,
         ...(reason.trim() ? { reason: reason.trim() } : {}),
@@ -100,11 +126,11 @@ function useAdminController() {
     }
   }
   async function reopen(ids = selected) {
-    if (!backend || !ids.length) return;
+    if (!backend || !ids.length || !session) return;
     setBusy(true);
     setError("");
     try {
-      await backend.mutation(api.admin.reopen, { token, ids });
+      await backend.mutation(api.admin.reopen, { session, ids });
       setSelected([]);
       await load();
     } catch {
@@ -115,6 +141,18 @@ function useAdminController() {
       setBusy(false);
     }
   }
+  async function signOut() {
+    if (backend && session)
+      await backend.mutation(api.admin.endSession, { session }).catch(() => {});
+    sessionStorage.removeItem(SESSION_KEY);
+    setSession("");
+    setResult(null);
+    setSelected([]);
+    setError("");
+  }
+  useEffect(() => {
+    if (session) void load();
+  }, []);
   return {
     audiences,
     busy,
@@ -127,6 +165,7 @@ function useAdminController() {
     result,
     selected,
     selectedIds,
+    session,
     setAudiences,
     setCategories,
     setError,
@@ -134,6 +173,7 @@ function useAdminController() {
     setResult,
     setSelected,
     setToken,
+    signOut,
     status,
     token,
   };
@@ -158,7 +198,9 @@ function AdminPage() {
     setReason,
     setResult,
     setSelected,
+    session,
     setToken,
+    signOut,
     status,
     token,
   } = useAdminController();
@@ -166,22 +208,35 @@ function AdminPage() {
     <div className="app-shell admin-shell">
       <header className="admin-header">
         <Brand />
-        <Link to="/" className="text-link">
-          View website
-        </Link>
+        <div className="admin-header-links">
+          {result && (
+            <button
+              type="button"
+              className="text-link"
+              onClick={() => void signOut()}
+            >
+              Sign out
+            </button>
+          )}
+          <Link to="/" className="text-link">
+            View website
+          </Link>
+        </div>
       </header>
       <main
         className={`inner-page ${result ? "admin-workspace" : "admin-login"}`}
       >
         <div className="page-heading">
-          <h1>{result ? "Review queue" : "Administrator access"}</h1>
+          <h1>{result || session ? "Review queue" : "Administrator access"}</h1>
           <p>
             {result
               ? "Check the source and terms, then select offers to review."
-              : "Sign in to review submissions and manage failed extractions."}
+              : session
+                ? "Restoring this tab's administrator session."
+                : "Sign in to review submissions and manage failed extractions."}
           </p>
         </div>
-        {!result && (
+        {!result && !session && (
           <p className="demo-entry">
             <Link to="/reviewer-demo" className="button">
               Try reviewer demo
@@ -192,7 +247,11 @@ function AdminPage() {
             </span>
           </p>
         )}
-        {!result ? (
+        {!result && session ? (
+          <p className="submission-panel" role="status">
+            Opening queue…
+          </p>
+        ) : !result ? (
           <form
             className="submission-panel admin-login-form"
             noValidate
@@ -227,7 +286,8 @@ function AdminPage() {
               aria-describedby={error ? "admin-error" : "admin-token-help"}
             />
             <p id="admin-token-help" className="form-help">
-              Use your private administrator token. It is kept only in this tab.
+              The token is used once to start a 12-hour session in this tab.
+              Later requests send the session, not the token.
             </p>
             {error && (
               <p id="admin-error" className="form-error" role="alert">
@@ -259,22 +319,18 @@ function AdminPage() {
                     disabled={busy}
                     onClick={() => void load(null, value)}
                   >
-                    {value === "pending" ? "Needs review" : value}
+                    {value === "pending"
+                      ? "Needs review"
+                      : value === "approved"
+                        ? "Approved"
+                        : "Rejected"}
                   </button>
                 ))}
               </div>
               <button
                 className="button"
                 disabled={busy}
-                onClick={() => {
-                  setResult(null);
-                  setToken("");
-                  setSelected([]);
-                  setCategories({});
-                  setAudiences({});
-                  setReason("");
-                  setError("");
-                }}
+                onClick={() => void signOut()}
               >
                 Sign out
               </button>
@@ -501,15 +557,15 @@ function AdminPage() {
             </div>
           </>
         )}
-        {result && <LiveCatalog token={token} />}
-        {result && <FailedJobs token={token} />}
-        {result && (
+        {result && session && <LiveCatalog session={session} />}
+        {result && session && <FailedJobs session={session} />}
+        {result && session && (
           <details className="admin-activity">
             <summary>
               Discovery activity{" "}
               <span>Search history and duplicate counts</span>
             </summary>
-            <DiscoveryStatus token={token} />
+            <DiscoveryStatus session={session} />
           </details>
         )}
       </main>
@@ -517,12 +573,12 @@ function AdminPage() {
   );
 }
 
-function LiveCatalog({ token }: { token: string }) {
+function LiveCatalog({ session }: { session: string }) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const offers = useQuery(api.admin.liveOffers, {
-    token,
+    session,
     paginationOpts: { cursor, numItems: 10 },
   });
   async function unpublish(resourceId: Id<"resources">) {
@@ -530,7 +586,7 @@ function LiveCatalog({ token }: { token: string }) {
     setBusy(true);
     setError("");
     try {
-      await backend.mutation(api.admin.unpublish, { token, resourceId });
+      await backend.mutation(api.admin.unpublish, { session, resourceId });
     } catch {
       setError("That offer could not be removed. Refresh and try again.");
     } finally {
@@ -547,7 +603,7 @@ function LiveCatalog({ token }: { token: string }) {
     setError("");
     try {
       await backend.mutation(api.admin.recategorize, {
-        token,
+        session,
         resourceId,
         category,
         audience,
@@ -655,8 +711,8 @@ function LiveCatalog({ token }: { token: string }) {
   );
 }
 
-function DiscoveryStatus({ token }: { token: string }) {
-  const data = useQuery(api.admin.discoveryStatus, { token });
+function DiscoveryStatus({ session }: { session: string }) {
+  const data = useQuery(api.admin.discoveryStatus, { session });
   return (
     <section className="detail-section" aria-label="Automatic discovery">
       <h2>Automatic discovery</h2>
@@ -667,9 +723,10 @@ function DiscoveryStatus({ token }: { token: string }) {
           <p>
             {data.enabled ? "Active" : "Paused"} ·{" "}
             {data.searches.filter((search) => search.enabled).length} enabled
-            searches. Recent public results are checked every three hours. Each
-            search can return up to 100 links. Repeats are skipped. New links
-            are queued for extraction.
+            searches. Intent searches run every three hours. Hosts from
+            published offers rotate on a slower cadence. Each search can return
+            up to 20 links. Repeats are skipped. New links are queued for
+            extraction. A daily discovery budget caps Firecrawl spend.
           </p>
           <p>
             Completed searches send new links for extraction and review. Only
@@ -702,12 +759,12 @@ function DiscoveryStatus({ token }: { token: string }) {
   );
 }
 
-function FailedJobs({ token }: { token: string }) {
+function FailedJobs({ session }: { session: string }) {
   const [cursor, setCursor] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const jobs = useQuery(api.admin.failedJobs, {
-    token,
+    session,
     paginationOpts: { cursor, numItems: 10 },
   });
   async function retry(jobId: Id<"intakeJobs">) {
@@ -715,7 +772,7 @@ function FailedJobs({ token }: { token: string }) {
     setError("");
     try {
       if (!backend) throw new Error("Backend unavailable");
-      await backend.mutation(api.admin.retry, { token, jobId });
+      await backend.mutation(api.admin.retry, { session, jobId });
     } catch {
       setError("Retry could not be scheduled. Refresh and try again.");
     } finally {
@@ -726,7 +783,7 @@ function FailedJobs({ token }: { token: string }) {
     <section className="admin-failures">
       <h2>Extraction failures</h2>
       <p>
-        Failed requests stop after three attempts. Retry after resolving the
+        Failed requests stop after two attempts. Retry after resolving the
         source or service issue.
       </p>
       {!jobs && <p role="status">Loading failed extractions…</p>}

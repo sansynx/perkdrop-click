@@ -52,15 +52,31 @@ async function fixture() {
   const candidate = await t.run((ctx) =>
     ctx.db.query("resourceCandidates").first(),
   );
+  const session = (await t.mutation(api.admin.startSession, { token })).session;
   await t.mutation(api.admin.decide, {
-    token,
+    session,
     ids: [candidate!._id],
     decision: "approved",
     reason: "Checked original offer and eligibility",
   });
   const resource = await t.run((ctx) => ctx.db.query("resources").first());
-  return { t, resource: resource!, candidate: candidate!, jobId };
+  return { t, resource: resource!, candidate: candidate!, jobId, session };
 }
+it("exchanges the operator token for a hashed session and forgets it on sign-out", async () => {
+  const { t, session } = await fixture();
+  const rows = await t.run((ctx) => ctx.db.query("adminSessions").collect());
+  expect(rows).toHaveLength(1);
+  expect(rows[0]?.hash).not.toBe(session);
+  await t.mutation(api.admin.endSession, { session });
+  await expect(
+    t.query(api.admin.queue, {
+      session,
+      status: "pending",
+      paginationOpts: { cursor: null, numItems: 20 },
+    }),
+  ).rejects.toThrow("Administrator access required");
+});
+
 it("persists anonymous feedback once and reads bounded aggregate counts", async () => {
   const { t, resource } = await fixture();
   const args = {
@@ -101,6 +117,62 @@ it("blocks reaction spam at the shared limit", async () => {
     await t.query(api.reactions.getSummary, { resourceId: resource._id }),
   ).toEqual({});
 });
+it("marks ending-soon publications from expiry dates instead of query-time clocks", async () => {
+  const { t, resource } = await fixture();
+  const soon = Date.now() + 7 * 86400000;
+  await t.run(async (ctx) => {
+    await ctx.db.patch(resource._id, { expiresAt: soon });
+    const publication = await ctx.db.query("publishedOffers").first();
+    await ctx.db.patch(publication!._id, { expiresAt: soon });
+  });
+  expect(
+    await t.mutation(internal.lifecycle.markEndingSoon, {}),
+  ).toBeGreaterThan(0);
+  const page = await t.query(api.catalog.page, {
+    category: "Everything",
+    search: "",
+    endingSoon: true,
+    paginationOpts: { cursor: null, numItems: 5 },
+  });
+  expect(page.page).toHaveLength(1);
+});
+
+it("trims old discovery runs and resource checks", async () => {
+  const { t, resource } = await fixture();
+  const old = Date.now() - 40 * 86400000;
+  await t.run(async (ctx) => {
+    const queryId = await ctx.db.insert("discoveryQueries", {
+      query: "old",
+      enabled: false,
+      cadenceHours: 3,
+      createdAt: old,
+    });
+    await ctx.db.insert("discoveryRuns", {
+      queryId,
+      query: "old",
+      startedAt: old,
+      status: "completed",
+      found: 0,
+      queued: 0,
+      duplicates: 0,
+      limited: 0,
+    });
+    await ctx.db.insert("resourceChecks", {
+      resourceId: resource._id,
+      checkedAt: old,
+      offerDetected: true,
+      result: "unchanged",
+    });
+  });
+  expect(await t.mutation(internal.lifecycle.cleanupHistory, {})).toBe(2);
+  expect(
+    await t.run((ctx) => ctx.db.query("discoveryRuns").collect()),
+  ).toHaveLength(0);
+  expect(
+    await t.run((ctx) => ctx.db.query("resourceChecks").collect()),
+  ).toHaveLength(0);
+});
+
 it("hides expired detail pages before the cron and archives them without deletion", async () => {
   const { t, resource } = await fixture();
   await t.run((ctx) =>
@@ -140,7 +212,7 @@ it("revalidates unchanged offers idempotently", async () => {
   ).toHaveLength(1);
 });
 it("queues changed terms and republishes the same resource after review", async () => {
-  const { t, resource, candidate } = await fixture();
+  const { t, resource, candidate, session } = await fixture();
   await t.mutation(internal.revalidation.finish, {
     resourceId: resource._id,
     checkedAt: Date.now(),
@@ -157,7 +229,7 @@ it("queues changed terms and republishes the same resource after review", async 
     valueText: "$50",
   });
   await t.mutation(api.admin.decide, {
-    token,
+    session,
     ids: [candidate._id],
     decision: "approved",
     reason: "Confirmed the new application requirements",
@@ -211,9 +283,9 @@ it("reserves due rechecks once and clears only expired rate buckets", async () =
     });
   });
   expect(await t.mutation(internal.lifecycle.cleanupLimits, {})).toBe(1);
-  expect(
-    await t.run((ctx) => ctx.db.query("intakeLimits").collect()),
-  ).toHaveLength(1);
+  const limits = await t.run((ctx) => ctx.db.query("intakeLimits").collect());
+  expect(limits.some((row) => row.key === "old")).toBe(false);
+  expect(limits.some((row) => row.key === "new")).toBe(true);
 });
 it("rejects crawler loops back into Perkdrop", async () => {
   const { t } = await fixture();
@@ -270,9 +342,10 @@ it("approves the rest of a batch when one queued offer has expired", async () =>
       .unique();
     await ctx.db.patch(details!._id, { expiresAt: Date.now() - 1 });
   });
+  const session = (await t.mutation(api.admin.startSession, { token })).session;
   expect(
     await t.mutation(api.admin.decide, {
-      token,
+      session,
       ids: [live._id, expired._id],
       decision: "approved",
       reason: "Checked original offer and eligibility",
@@ -293,16 +366,16 @@ it("approves the rest of a batch when one queued offer has expired", async () =>
 });
 
 it("unpublishes an active offer and removes it from the live catalog", async () => {
-  const { t, resource, jobId } = await fixture();
+  const { t, resource, jobId, session } = await fixture();
   await expect(
     t.mutation(api.admin.unpublish, {
-      token: "wrong-token-that-is-long-enough-to-compare",
+      session: "wrong-token-that-is-long-enough-to-compare",
       resourceId: resource._id,
       reason: "Claim page now requires payment",
     }),
   ).rejects.toThrow("Administrator access required");
   await t.mutation(api.admin.unpublish, {
-    token,
+    session,
     resourceId: resource._id,
   });
   expect(await t.query(api.catalog.get, { slug: resource.slug })).toBeNull();
@@ -318,12 +391,12 @@ it("unpublishes an active offer and removes it from the live catalog", async () 
 });
 
 it("returns a rejected offer to pending review", async () => {
-  const { t, candidate } = await fixture();
+  const { t, candidate, session } = await fixture();
   await t.run((ctx) =>
     ctx.db.patch(candidate._id, { status: "rejected", reviewedAt: 2 }),
   );
   expect(
-    await t.mutation(api.admin.reopen, { token, ids: [candidate._id] }),
+    await t.mutation(api.admin.reopen, { session, ids: [candidate._id] }),
   ).toBe(1);
   expect(await t.run((ctx) => ctx.db.get(candidate._id))).toMatchObject({
     status: "pending",
@@ -331,9 +404,9 @@ it("returns a rejected offer to pending review", async () => {
 });
 
 it("moves a live offer into another homepage category", async () => {
-  const { t, resource } = await fixture();
+  const { t, resource, session } = await fixture();
   await t.mutation(api.admin.recategorize, {
-    token,
+    session,
     resourceId: resource._id,
     category: "Education",
     audience: "Students",
@@ -342,7 +415,7 @@ it("moves a live offer into another homepage category", async () => {
     category: "Education",
   });
   const live = await t.query(api.admin.liveOffers, {
-    token,
+    session,
     paginationOpts: { cursor: null, numItems: 10 },
   });
   expect(live.page[0]?.category).toBe("Education");
@@ -350,7 +423,7 @@ it("moves a live offer into another homepage category", async () => {
 });
 
 it("approves from the queue without a typed review note", async () => {
-  const { t } = await fixture();
+  const { t, session } = await fixture();
   const jobId = await t.run((ctx) =>
     ctx.db.insert("intakeJobs", {
       canonicalUrl: "https://example.com/second",
@@ -379,13 +452,13 @@ it("approves from the queue without a typed review note", async () => {
   );
   expect(
     await t.mutation(api.admin.decide, {
-      token,
+      session,
       ids: [pending!._id],
       decision: "approved",
     }),
   ).toBe(1);
   const queue = await t.query(api.admin.queue, {
-    token,
+    session,
     status: "approved",
     paginationOpts: { cursor: null, numItems: 20 },
   });
@@ -393,9 +466,9 @@ it("approves from the queue without a typed review note", async () => {
 });
 
 it("preserves administrator placement when changed terms return for review", async () => {
-  const { t, resource, candidate } = await fixture();
+  const { t, resource, candidate, session } = await fixture();
   await t.mutation(api.admin.recategorize, {
-    token,
+    session,
     resourceId: resource._id,
     category: "Education",
     audience: "Students",
@@ -408,7 +481,7 @@ it("preserves administrator placement when changed terms return for review", asy
     finalUrl: offer.claimUrl,
   });
   const queue = await t.query(api.admin.queue, {
-    token,
+    session,
     status: "pending",
     paginationOpts: { cursor: null, numItems: 20 },
   });
@@ -417,7 +490,7 @@ it("preserves administrator placement when changed terms return for review", asy
     audience: "Students",
   });
   await t.mutation(api.admin.decide, {
-    token,
+    session,
     ids: [candidate._id],
     decision: "approved",
   });
@@ -432,12 +505,12 @@ it("preserves administrator placement when changed terms return for review", asy
 });
 
 it("rejects invalid placement rather than silently publishing defaults", async () => {
-  const { t, resource, candidate } = await fixture();
-  await t.mutation(api.admin.unpublish, { token, resourceId: resource._id });
-  await t.mutation(api.admin.reopen, { token, ids: [candidate._id] });
+  const { t, resource, candidate, session } = await fixture();
+  await t.mutation(api.admin.unpublish, { session, resourceId: resource._id });
+  await t.mutation(api.admin.reopen, { session, ids: [candidate._id] });
   await expect(
     t.mutation(api.admin.decide, {
-      token,
+      session,
       ids: [candidate._id],
       decision: "approved",
       categories: [{ id: candidate._id, category: "made up" }],
@@ -450,14 +523,14 @@ it("keeps the new moderation mutations private", async () => {
   const { t, resource, candidate } = await fixture();
   await expect(
     t.mutation(api.admin.recategorize, {
-      token: "AllGas2026",
+      session: "AllGas2026",
       resourceId: resource._id,
       category: "Education",
     }),
   ).rejects.toThrow("Administrator access required");
   await expect(
     t.mutation(api.admin.reopen, {
-      token: "AllGas2026",
+      session: "AllGas2026",
       ids: [candidate._id],
     }),
   ).rejects.toThrow("Administrator access required");

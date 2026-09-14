@@ -13,13 +13,15 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   font-family:
     "Geist Variable",
-    Geist,
+    ui-sans-serif,
+    system-ui,
     -apple-system,
-    BlinkMacSystemFont,
     "Segoe UI",
     sans-serif;
   font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  font-feature-settings:
+    "kern" 1,
+    "liga" 0;
 }
 * {
   box-sizing: border-box;
@@ -141,8 +143,8 @@ button:active:not(:disabled),
   align-items: center;
   gap: 8px;
   font-size: 21px;
-  letter-spacing: -0.8px;
-  font-weight: 620;
+  letter-spacing: -0.02em;
+  font-weight: 600;
   white-space: nowrap;
 }
 .brand img {
@@ -264,9 +266,9 @@ button:active:not(:disabled),
 .hero h1 {
   margin: 26px 0 22px;
   font-size: clamp(48px, 5.2vw, 68px);
-  font-weight: 520;
-  line-height: 1.065;
-  letter-spacing: -0.055em;
+  font-weight: 500;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
 }
 .hero h1 > span {
   color: var(--orange);
@@ -823,8 +825,8 @@ button:active:not(:disabled),
   margin: 12px 0;
   font-size: 43px;
   font-weight: 500;
-  line-height: 1.13;
-  letter-spacing: -1.8px;
+  line-height: 1.18;
+  letter-spacing: -0.03em;
 }
 .page-heading p {
   color: #737373;
@@ -1803,6 +1805,18 @@ button:active:not(:disabled),
   padding: 20px clamp(20px, 5vw, 64px);
   border-bottom: 1px solid var(--line);
   background: var(--paper, #fafafa);
+}
+.admin-header-links {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.admin-header-links .text-link {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
 }
 .admin-shell .inner-page {
   padding-top: 32px;

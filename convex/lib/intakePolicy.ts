@@ -65,12 +65,24 @@ export function isLowValueDiscovery(input: string): boolean {
   }
 }
 export function isPerkdropHost(host: string) {
-  const name = host.toLowerCase();
-  return (
-    name === "perkdrop.click" ||
-    name.endsWith(".perkdrop.click") ||
-    name.includes("perkdrop-click")
-  );
+  const name = host.toLowerCase().replace(/\.$/, "");
+  if (name === "perkdrop.click" || name.endsWith(".perkdrop.click"))
+    return true;
+  if (name.split(".").includes("perkdrop-click")) return true;
+  for (const raw of [
+    process.env.PUBLIC_SITE_URL,
+    process.env.CONVEX_SITE_URL,
+  ]) {
+    const value = raw?.trim();
+    if (!value) continue;
+    try {
+      const site = new URL(value).hostname.toLowerCase().replace(/^www\./, "");
+      if (name === site || name.endsWith(`.${site}`)) return true;
+    } catch {
+      /* Ignore unset or invalid site URLs. */
+    }
+  }
+  return false;
 }
 export type Offer = {
   provider: string;
@@ -101,7 +113,6 @@ export function offerKey(offer: Offer): string {
     [...offer.regions].map(normalized).sort(),
     offer.requiresCard,
     offer.requiresApplication,
-    offer.expiresAt ?? null,
   ]);
 }
 export function assess(

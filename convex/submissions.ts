@@ -9,6 +9,9 @@ import {
   urlVariants,
 } from "./lib/intakePolicy";
 import { workflow } from "./workflows";
+import { reserveLimit } from "./lib/limits";
+
+export const DISCOVERY_DAILY_LIMIT = 80;
 
 async function rememberSeenUrl(
   ctx: MutationCtx,
@@ -102,40 +105,24 @@ export async function enqueueIntake(
     );
   const now = Date.now();
   const day = Math.floor(now / 86400000);
-  const buckets: [string, number, number][] = [
+  const reserved = await reserveLimit(ctx, [
     ...(anonymousId
-      ? [
+      ? ([
           [
             `visitor:${anonymousId}:${Math.floor(now / 600000)}`,
             5,
             now + 600000,
-          ] as [string, number, number],
-        ]
-      : []),
-    ...(!discoveryRunId
-      ? [
-          [`domain:${new URL(url).hostname}:${day}`, 30, now + 86400000] as [
-            string,
-            number,
-            number,
           ],
-          [`global:${day}`, 200, now + 86400000] as [string, number, number],
-        ]
+        ] as const)
       : []),
-  ];
-  const updates = [];
-  for (const [key, maximum, expiresAt] of buckets) {
-    const bucket = await ctx.db
-      .query("intakeLimits")
-      .withIndex("by_key", (q) => q.eq("key", key))
-      .unique();
-    if (bucket && bucket.count >= maximum) return null;
-    updates.push({ key, expiresAt, bucket });
-  }
-  for (const { key, expiresAt, bucket } of updates) {
-    if (bucket) await ctx.db.patch(bucket._id, { count: bucket.count + 1 });
-    else await ctx.db.insert("intakeLimits", { key, count: 1, expiresAt });
-  }
+    ...(discoveryRunId
+      ? ([[`discovery:${day}`, DISCOVERY_DAILY_LIMIT, now + 86400000]] as const)
+      : ([
+          [`domain:${new URL(url).hostname}:${day}`, 30, now + 86400000],
+          [`global:${day}`, 200, now + 86400000],
+        ] as const)),
+  ]);
+  if (!reserved) return null;
   const id = await ctx.db.insert("intakeJobs", {
     ...(discoveryRunId ? { discoveryRunId } : {}),
     canonicalUrl: url,

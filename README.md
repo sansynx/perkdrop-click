@@ -22,7 +22,7 @@ sequenceDiagram
         Mail->>Backend: Signed inbound webhook
         Backend->>Backend: Verify signature, event ID, and inbox
     else Scheduled discovery
-        Backend->>Crawler: Search Devpost, student packs, and other perk topics every 3 hours
+        Backend->>Crawler: Search product intents, then hosts from published offers
         Crawler-->>Backend: Search results for each topic
         Backend->>Backend: Skip repeats, queue new links for extraction
     end
@@ -35,7 +35,7 @@ sequenceDiagram
         Backend->>Backend: Match offer key and assess trust and terms
         opt Candidate needs human review
             Backend-->>Admin: Show evidence and review reasons
-            Admin->>Backend: Approve or reject with private authorization
+            Admin->>Backend: Start a session, then approve or reject
         end
         alt Approved and unexpired
             Backend->>Backend: Publish the offer
@@ -47,8 +47,8 @@ sequenceDiagram
 ```
 
 Three intake paths share one queue: a public URL on `/submit`, a forwarded
-email, or scheduled Firecrawl search. Matching offer keys merge duplicates. No
-domain is trusted by default. Finding a link does not publish it.
+email, or scheduled Firecrawl search. Matching offer keys merge duplicates, including the same perk with a new
+expiry date. No domain is trusted by default. Finding a link does not publish it.
 
 Rechecks take up to 25 due offers every two hours. Changed or repeatedly unverifiable
 offers leave the catalog pending review. Expired offers are removed.
@@ -81,7 +81,8 @@ No credential is required.
 
 The public label `AllGas2026` is a demo tag, not a production admin password.
 Decisions stay in the current tab. They cannot publish offers or call Firecrawl.
-The real `/admin` route still needs the private token.
+The real `/admin` route exchanges the private token for a 12-hour
+tab session. Later admin requests send that session, not the token.
 
 ## WebMCP
 
@@ -112,16 +113,18 @@ pnpm run dev
 | -------------------------- | ----------------------------------------------------------------- |
 | `VITE_CONVEX_URL`          | Public Convex client URL. Safe to embed in the website.           |
 | `FIRECRAWL_API_KEY`        | Convex secret.                                                    |
-| `ADMIN_REVIEW_TOKEN`       | Convex secret, at least 32 characters.                            |
+| `ADMIN_REVIEW_TOKEN`       | Convex secret, at least 32 characters. Exchanged for a session.   |
 | `DISCOVERY_ENABLED`        | Set `true` on Convex to run scheduled search.                     |
 | `AGENTMAIL_API_KEY`        | Convex secret for receipts.                                       |
 | `AGENTMAIL_WEBHOOK_SECRET` | Convex secret. Svix secret from AgentMail.                        |
 | `AGENTMAIL_INTAKE_ADDRESS` | Public inbox shown on `/submit`.                                  |
+| `AGENTMAIL_INBOX_ID`       | Optional. AgentMail `inbox_id` when it is not the intake address. |
 | `PUBLIC_SITE_URL`          | HTTPS origin used in receipt links. Match the live app URL above. |
 | `CONVEX_SITE_URL`          | Set by Convex. Receipts load `/brand/mark.png` from it.           |
 | `AGENTMAIL_BASE_URL`       | Optional. Defaults to `https://api.agentmail.to/v0`.              |
 
 Never prefix secrets with `VITE_`. Only `.env.example` belongs in Git.
+Machine-local scratch belongs in `.local/` and is ignored.
 
 Webhook path: `https://<deployment>.convex.site/agentmail/webhook` for
 `message.received`. Restrict it to the configured inbox. Forward public

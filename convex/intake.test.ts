@@ -83,13 +83,14 @@ it("merges exact offers, preserves variants, and publishes approvals once", asyn
   expect(candidates).toHaveLength(2);
   await expect(
     t.query(api.admin.queue, {
-      token: "wrong",
+      session: "wrong",
       status: "pending",
       paginationOpts: { cursor: null, numItems: 20 },
     }),
   ).rejects.toThrow("Administrator access required");
+  const session = (await t.mutation(api.admin.startSession, { token })).session;
   const args = {
-    token,
+    session,
     ids: [candidates[0]._id],
     decision: "approved" as const,
     reason: "Verified original source and all offer terms",

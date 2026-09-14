@@ -64,13 +64,14 @@ describe("submission policy", () => {
     expect(isPerkdropHost("perkdrop.click")).toBe(true);
     expect(isPerkdropHost("perkdrop-click.sanathr106.chatgpt.site")).toBe(true);
     expect(isPerkdropHost("resend.com")).toBe(false);
+    expect(isPerkdropHost("notperkdrop-click.com")).toBe(false);
   });
   it("does not merge distinct campaigns or eligibility", () => {
     expect(offerKey(offer)).not.toBe(offerKey({ ...offer, valueText: "$200" }));
     expect(offerKey(offer)).not.toBe(
       offerKey({ ...offer, eligibility: ["Students"] }),
     );
-    expect(offerKey(offer)).not.toBe(offerKey({ ...offer, expiresAt: 123 }));
+    expect(offerKey(offer)).toBe(offerKey({ ...offer, expiresAt: 123 }));
   });
   it("requires explicit trust and source evidence for automation", () => {
     expect(assess(offer, offer.evidence, false, 1).decision).toBe("pending");

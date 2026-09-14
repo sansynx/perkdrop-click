@@ -14,6 +14,7 @@ import {
   receiptMail,
   senderEmail,
 } from "./lib/emailIntake";
+import { reserveLimit } from "./lib/limits";
 
 const receiptValidator = v.object({
   id: v.id("intakeJobs"),
@@ -128,8 +129,16 @@ export const onMessageReceived = internalMutation({
     if (from && intake && from === intake) return null;
     const inboxId =
       stringField(message, "inbox_id") ?? stringField(message, "inboxId");
-    if (!intake || !from || inboxId?.trim().toLowerCase() !== intake)
+    const expectedInbox = (process.env.AGENTMAIL_INBOX_ID ?? intake ?? "")
+      .trim()
+      .toLowerCase();
+    if (
+      !expectedInbox ||
+      !from ||
+      inboxId?.trim().toLowerCase() !== expectedInbox
+    )
       return null;
+    if (!(await reserveReceipt(ctx, from))) return null;
     const messageId =
       stringField(message, "message_id") ?? stringField(message, "messageId");
     const result = await ingestMail(ctx, {
@@ -145,7 +154,6 @@ export const onMessageReceived = internalMutation({
     });
     if (!result.receipts.length && !result.unavailable && result.urls === 0)
       return null;
-    if (!(await reserveReceipt(ctx, from))) return null;
     const copy = result.receipts.length
       ? receiptMail(result.receipts)
       : noticeMail(result.unavailable ? "unavailable" : "limited");
@@ -164,24 +172,10 @@ async function reserveReceipt(ctx: MutationCtx, sender: string) {
   const now = Date.now();
   const hour = Math.floor(now / 3_600_000);
   const day = Math.floor(now / 86_400_000);
-  const limits: [string, number, number][] = [
+  return reserveLimit(ctx, [
     [`mail:sender:${sender}:${hour}`, 5, (hour + 1) * 3_600_000],
     [`mail:global:${day}`, 200, (day + 1) * 86_400_000],
-  ];
-  const updates = [];
-  for (const [key, maximum, expiresAt] of limits) {
-    const bucket = await ctx.db
-      .query("intakeLimits")
-      .withIndex("by_key", (q) => q.eq("key", key))
-      .unique();
-    if (bucket && bucket.count >= maximum) return false;
-    updates.push({ key, expiresAt, bucket });
-  }
-  for (const { key, expiresAt, bucket } of updates) {
-    if (bucket) await ctx.db.patch(bucket._id, { count: bucket.count + 1 });
-    else await ctx.db.insert("intakeLimits", { key, count: 1, expiresAt });
-  }
-  return true;
+  ]);
 }
 
 export const sendReceipt = internalAction({

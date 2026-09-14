@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
+import { reserveLimit } from "./lib/limits";
 const reactionType = v.union(
   v.literal("claimed"),
   v.literal("works"),
@@ -40,26 +41,16 @@ export const add = mutation({
       .unique();
     if (existing) return existing._id;
     const now = Date.now();
-    for (const [key, maximum] of [
-      [`reaction:visitor:${args.anonymousId}:${Math.floor(now / 3600000)}`, 20],
-      [`reaction:global:${Math.floor(now / 3600000)}`, 1000],
-    ] as const) {
-      const bucket = await ctx.db
-        .query("intakeLimits")
-        .withIndex("by_key", (q) => q.eq("key", key))
-        .unique();
-      if (bucket && bucket.count >= maximum)
-        throw new ConvexError(
-          "Too many feedback requests. Please try again later.",
-        );
-      if (bucket) await ctx.db.patch(bucket._id, { count: bucket.count + 1 });
-      else
-        await ctx.db.insert("intakeLimits", {
-          key,
-          count: 1,
-          expiresAt: now + 3600000,
-        });
-    }
+    const hour = Math.floor(now / 3600000);
+    if (
+      !(await reserveLimit(ctx, [
+        [`reaction:visitor:${args.anonymousId}:${hour}`, 20, now + 3600000],
+        [`reaction:global:${hour}`, 1000, now + 3600000],
+      ]))
+    )
+      throw new ConvexError(
+        "Too many feedback requests. Please try again later.",
+      );
     const counter = await ctx.db
       .query("reactionCounts")
       .withIndex("by_resource_type", (q) =>

@@ -19,18 +19,49 @@ import {
 } from "./lib/categories";
 import { removePublication } from "./lib/publications";
 import { workflow } from "./workflows";
+import { reserveLimit } from "./lib/limits";
+import {
+  ADMIN_SESSION_MS,
+  authorizeOperatorToken,
+  authorizeSession,
+  hashSessionSecret,
+  newSessionSecret,
+} from "./lib/adminSession";
 
-function authorize(token: string) {
-  const expected = process.env.ADMIN_REVIEW_TOKEN?.trim();
-  if (!expected || expected.length < 32 || token.length !== expected.length)
-    throw new Error("Administrator access required");
-  let difference = 0;
-  for (let i = 0; i < expected.length; i++)
-    difference |= expected.charCodeAt(i) ^ token.charCodeAt(i);
-  if (difference) throw new Error("Administrator access required");
-}
-export const discoveryStatus = query({
+export const startSession = mutation({
   args: { token: v.string() },
+  returns: v.object({ session: v.string() }),
+  handler: async (ctx, { token }) => {
+    const now = Date.now();
+    if (
+      !(await reserveLimit(ctx, [
+        [`admin:login:${Math.floor(now / 60000)}`, 8, now + 60000],
+      ]))
+    )
+      throw new Error("Administrator access required");
+    authorizeOperatorToken(token);
+    const session = newSessionSecret();
+    await ctx.db.insert("adminSessions", {
+      hash: await hashSessionSecret(session),
+      expiresAt: now + ADMIN_SESSION_MS,
+      createdAt: now,
+    });
+    return { session };
+  },
+});
+
+export const endSession = mutation({
+  args: { session: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { session }) => {
+    const row = await authorizeSession(ctx, session);
+    await ctx.db.delete(row._id);
+    return null;
+  },
+});
+
+export const discoveryStatus = query({
+  args: { session: v.string() },
   returns: v.object({
     enabled: v.boolean(),
     searches: v.array(
@@ -56,8 +87,8 @@ export const discoveryStatus = query({
       }),
     ),
   }),
-  handler: async (ctx, { token }) => {
-    authorize(token);
+  handler: async (ctx, { session }) => {
+    await authorizeSession(ctx, session);
     const [searches, runs] = await Promise.all([
       ctx.db.query("discoveryQueries").take(100),
       ctx.db
@@ -121,7 +152,7 @@ const item = v.object({
 });
 export const queue = query({
   args: {
-    token: v.string(),
+    session: v.string(),
     status: v.union(
       v.literal("pending"),
       v.literal("approved"),
@@ -135,7 +166,7 @@ export const queue = query({
     continueCursor: v.string(),
   }),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     const result = await ctx.db
       .query("resourceCandidates")
       .withIndex("by_status", (q) => q.eq("status", args.status))
@@ -212,7 +243,7 @@ export const queue = query({
 });
 export const decide = mutation({
   args: {
-    token: v.string(),
+    session: v.string(),
     ids: v.array(v.id("resourceCandidates")),
     decision: v.union(v.literal("approved"), v.literal("rejected")),
     reason: v.optional(v.string()),
@@ -235,7 +266,7 @@ export const decide = mutation({
   },
   returns: v.number(),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     const note = args.reason?.trim() || "Reviewed by administrator.";
     if (!args.ids.length || args.ids.length > 20 || note.length > 500)
       throw new Error("Select 1–20 offers");
@@ -323,10 +354,10 @@ export const decide = mutation({
   },
 });
 export const retry = mutation({
-  args: { token: v.string(), jobId: v.id("intakeJobs") },
+  args: { session: v.string(), jobId: v.id("intakeJobs") },
   returns: v.null(),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     await retryJob(ctx, args.jobId);
     return null;
   },
@@ -357,7 +388,7 @@ export const retryFailed = internalMutation({
   },
 });
 export const failedJobs = query({
-  args: { token: v.string(), paginationOpts: paginationOptsValidator },
+  args: { session: v.string(), paginationOpts: paginationOptsValidator },
   returns: v.object({
     page: v.array(
       v.object({
@@ -370,7 +401,7 @@ export const failedJobs = query({
     isDone: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     const result = await ctx.db
       .query("intakeJobs")
       .withIndex("by_status", (q) => q.eq("status", "failed"))
@@ -396,14 +427,14 @@ const liveItem = v.object({
   claimUrl: v.string(),
 });
 export const liveOffers = query({
-  args: { token: v.string(), paginationOpts: paginationOptsValidator },
+  args: { session: v.string(), paginationOpts: paginationOptsValidator },
   returns: v.object({
     page: v.array(liveItem),
     continueCursor: v.string(),
     isDone: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     const result = await ctx.db
       .query("publishedOffers")
       .order("desc")
@@ -415,32 +446,31 @@ export const liveOffers = query({
       result.page.map(async (row) => {
         const resource = await ctx.db.get(row.resourceId);
         if (!resource || resource.status !== "active") return null;
+        if (row.slug && row.title && row.claimUrl) {
+          return {
+            resourceId: resource._id,
+            slug: row.slug,
+            title: row.title,
+            provider: row.provider ?? "Independent provider",
+            category: row.category || resource.category,
+            audience: catalogAudience(row.audience ?? "Everyone"),
+            claimUrl: row.claimUrl,
+          };
+        }
         const provider = await ctx.db.get(resource.providerId);
-        return { row, resource, provider };
+        return {
+          resourceId: resource._id,
+          slug: resource.slug,
+          title: resource.title,
+          provider: provider?.name ?? "Independent provider",
+          category: resource.category,
+          audience: catalogAudience(row.audience ?? "Everyone"),
+          claimUrl:
+            resource.resolvedClaimUrl ?? resource.originalClaimUrl ?? "",
+        };
       }),
     );
-    const page: {
-      resourceId: Id<"resources">;
-      slug: string;
-      title: string;
-      provider: string;
-      category: string;
-      audience: string;
-      claimUrl: string;
-    }[] = [];
-    for (const entry of hydrated) {
-      if (!entry) continue;
-      const { row, resource, provider } = entry;
-      page.push({
-        resourceId: resource._id,
-        slug: resource.slug,
-        title: resource.title,
-        provider: provider?.name ?? "Independent provider",
-        category: resource.category,
-        audience: catalogAudience(row.audience ?? "Everyone"),
-        claimUrl: resource.resolvedClaimUrl ?? resource.originalClaimUrl ?? "",
-      });
-    }
+    const page = hydrated.filter((entry) => entry !== null);
     return {
       page,
       continueCursor: result.continueCursor,
@@ -450,13 +480,13 @@ export const liveOffers = query({
 });
 export const unpublish = mutation({
   args: {
-    token: v.string(),
+    session: v.string(),
     resourceId: v.id("resources"),
     reason: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     const reason = args.reason?.trim() || "Removed by administrator.";
     if (reason.length > 500) throw new Error("Takedown note is too long");
     const resource = await ctx.db.get(args.resourceId);
@@ -496,14 +526,14 @@ export const unpublish = mutation({
 });
 export const recategorize = mutation({
   args: {
-    token: v.string(),
+    session: v.string(),
     resourceId: v.id("resources"),
     category: v.string(),
     audience: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     if (!isOfferCategory(args.category))
       throw new Error("Choose a catalog category");
     if (args.audience !== undefined && !isOfferAudience(args.audience))
@@ -539,12 +569,12 @@ export const recategorize = mutation({
 });
 export const reopen = mutation({
   args: {
-    token: v.string(),
+    session: v.string(),
     ids: v.array(v.id("resourceCandidates")),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
-    authorize(args.token);
+    await authorizeSession(ctx, args.session);
     if (!args.ids.length || args.ids.length > 20)
       throw new Error("Select 1–20 rejected offers");
     const now = Date.now();
