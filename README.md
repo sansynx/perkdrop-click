@@ -3,6 +3,10 @@
 <p align="center">Free tools, credits, and programs with eligibility, evidence, and original links.</p>
 <p align="center"><a href="https://perkdrop-click.sanathr106.chatgpt.site">Visit Perkdrop</a></p>
 
+The live app for All Gas is the chatgpt.site link above. A Cloudflare Workers
+copy also runs at https://perkdrop-click.sansynx.workers.dev. Do not submit
+the Workers URL as the live app.
+
 See [AGENTS.md](AGENTS.md) for the code map and safe review instructions.
 
 ## How it works
@@ -158,6 +162,8 @@ After confirming the target, deploy backend changes with `pnpm exec convex deplo
 `pnpm run deploy` updates Cloudflare Workers only. Use the Sites publishing
 workflow for chatgpt.site; [.openai/hosting.json](.openai/hosting.json) identifies
 the existing project. Forks need their own Sites project and Workers account.
+Event submission uses the chatgpt.site URL, the public GitHub repo, and the
+root [hackathon.md](hackathon.md) build log.
 
 ## How I built with Codex
 

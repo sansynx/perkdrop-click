@@ -9,19 +9,19 @@ file. Product setup is in [README.md](README.md).
   links, eligibility details, and moderation before publication.
 - **Live app:** https://perkdrop-click.sanathr106.chatgpt.site
 - **Repo:** https://github.com/sansynx/perkdrop-click
-- **Frontend:** Other, TanStack Start on Sites, with a separate Cloudflare
-  Workers deployment
+- **Frontend:** Codex Sites
 - **Convex deployment:** https://gregarious-canary-249.convex.cloud
   This is the public client URL (`VITE_CONVEX_URL`), not a deploy key.
 - **Components:** @convex-dev/workflow, @agentmail/convex
 - **Convex features:** schema, tables, indexes, full-text search, queries,
-  mutations, actions, crons, scheduled functions, realtime queries
+  mutations, actions, HTTP actions, crons, scheduled functions, realtime
+  queries
 - **Auth:** Other, operator token exchanged for a hashed 12-hour admin session;
   anonymous public submissions
 - **AI models:** none explicitly configured; Firecrawl performs structured
   extraction
 - **Started:** 2026-09-09T14:51:40Z
-- **Last updated:** 2026-09-14
+- **Last updated:** 2026-09-14T06:20:00Z
 - **Agent access:** Browser-side WebMCP for public navigation and isolated demo
   review.
 
@@ -273,8 +273,29 @@ An independent backend review found the legacy lookup issue described above.
 Scope limits: this was a source and local-runtime review, not a penetration
 test, load test, or live email-delivery test. Public anonymous intake and
 feedback remain rate-limited rather than proof of a unique person. Query-time
-expiry checks also rely on scheduled cleanup for live subscribers. These
-changes have not yet been deployed to production.
+expiry checks also rely on scheduled cleanup for live subscribers. At the
+time of this review, these changes had not been deployed to production.
+
+### 2026-09-14 - 3ed52b2
+
+Shipped hashed 12-hour admin sessions. The operator token is exchanged once.
+The session secret is hashed at rest. Later admin reads send the session, not
+the token. `AllGas2026` cannot start a production session.
+
+Scheduled discovery now searches five product intents every three hours and
+rotates hosts from published offers on a slower cadence. Email, URL, and
+discovery intake share one limit helper. Ending-soon is stored by a cron
+instead of filtering on read time. History older than 30 days is trimmed.
+
+Production Convex `gregarious-canary-249` and the Workers copy were deployed
+with this work. GitHub Checks passed on `3ed52b2`. ChatGPT Sites still needs
+the owner to republish from git; until then the judging URL can serve an
+older frontend against the current backend.
+
+Convex features: schema, indexes, queries, mutations, actions, HTTP actions,
+crons, scheduled functions (`convex/lib/adminSession.ts`,
+`convex/discovery.ts`, `convex/lib/limits.ts`, `convex/lifecycle.ts`,
+`src/routes/admin.tsx`). Includes the related commit `9b77353`.
 
 ## Submission requirements and current gaps
 
@@ -318,14 +339,23 @@ overflow on mobile. An independent code review found no actionable security or
 correctness issues in this change.
 
 Checked against the
-[official event page](https://www.convex.dev/hackathons/all-gas) on September
-12, 2026. Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
+[official event page](https://www.convex.dev/hackathons/all-gas) and
+[Luma listing](https://luma.com/convex-allgas-hackathon) on September 14, 2026.
+Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
+
+Required files in this repo: root `hackathon.md`, `README.md`, `AGENTS.md`,
+`.openai/hosting.json` for the existing Sites project, and `.env.example` with
+variable names only. The public GitHub remote is
+https://github.com/sansynx/perkdrop-click.
 
 - [x] Convex backend and Firecrawl integration implemented.
 - [x] Root `hackathon.md` created from repository evidence.
 - [x] Public repository, made public with the owner's approval.
-- [x] Public app on `convex.site` or `chatgpt.site`. Sites confirmed the public
-      chatgpt.site deployment on September 11.
+- [x] Public app on `convex.site` or `chatgpt.site`. Live URL:
+      https://perkdrop-click.sanathr106.chatgpt.site
+      A Cloudflare Workers copy exists at
+      https://perkdrop-click.sansynx.workers.dev and is not a valid All Gas
+      live URL on its own.
 - [x] AgentMail inbound intake, webhook, and receipts. Direct OpenAI model calls
       in the product remain absent; Codex was used during development.
 - [x] Luma registration. The owner confirmed registration on September 12;
@@ -344,9 +374,12 @@ Checked against the
 
 ## Product work before the demo
 
-- Commit `a9f43bf` was deployed to Convex, Sites version 4, and Workers on
-  September 12. Convex schema validation succeeded with no index deletions.
-  Later moderation and discovery changes need their own release after review.
+- Production Convex `gregarious-canary-249` and the Workers copy were deployed
+  on September 14 for `9b77353` and `3ed52b2`. Schema validation succeeded.
+  Ending-soon and admin-session cleanup crons are live.
+- The owner still republishes chatgpt.site from the current git commit. Until
+  that happens, the judging URL can serve an older frontend against the
+  current backend.
 - Verify a real forwarded announcement and receipt before recording that flow.
   The automated audit did not send live email.
 - Review pending candidates against their sources and publish only eligible

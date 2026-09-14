@@ -34,7 +34,8 @@ offers stay pending until an administrator approves them.
 | Discovery         | [convex/discovery.ts](convex/discovery.ts), [convex/crons.ts](convex/crons.ts)                                                                     |
 | Extraction        | [convex/intake.ts](convex/intake.ts), [convex/workflows.ts](convex/workflows.ts)                                                                   |
 | Publication rules | [convex/lib/intakePolicy.ts](convex/lib/intakePolicy.ts)                                                                                           |
-| Admin review      | [src/routes/admin.tsx](src/routes/admin.tsx), [convex/admin.ts](convex/admin.ts)                                                                   |
+| Admin review      | [src/routes/admin.tsx](src/routes/admin.tsx), [convex/admin.ts](convex/admin.ts), [convex/lib/adminSession.ts](convex/lib/adminSession.ts)         |
+| Intake limits     | [convex/lib/limits.ts](convex/lib/limits.ts)                                                                                                       |
 | Recheck / expiry  | [convex/revalidation.ts](convex/revalidation.ts), [convex/lifecycle.ts](convex/lifecycle.ts)                                                       |
 | Schema            | [convex/schema.ts](convex/schema.ts)                                                                                                               |
 | Reviewer demo     | [src/routes/reviewer-demo.tsx](src/routes/reviewer-demo.tsx), [src/lib/reviewer-demo.ts](src/lib/reviewer-demo.ts)                                 |
@@ -71,7 +72,8 @@ It is safe to publish. It is not a deploy key.
 
 Also public: the chatgpt.site origin, `AGENTMAIL_INTAKE_ADDRESS` on `/submit`,
 and `https://<deployment>.convex.site` HTTP routes such as `/agentmail/webhook`
-and `/brand/mark.png`.
+and `/brand/mark.png`. https://perkdrop-click.sansynx.workers.dev is a
+Workers copy of the same frontend. It is not the All Gas live URL.
 
 Keep private: `ADMIN_REVIEW_TOKEN`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`,
 `AGENTMAIL_WEBHOOK_SECRET`, deploy keys, and any `.env*` file except
