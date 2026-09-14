@@ -180,8 +180,8 @@ dated build log in [hackathon.md](hackathon.md).
 
 Built for the [All Gas hackathon](https://www.convex.dev/hackathons/all-gas).
 
-See [hackathon.md](hackathon.md) for the build log and remaining submission
-steps. See [AGENTS.md](AGENTS.md) for the file map and what is actually wired.
+See [hackathon.md](hackathon.md) for the build log and submission checklist.
+See [AGENTS.md](AGENTS.md) for the file map and what is actually wired.
 
 Thank you to Convex, OpenAI, Firecrawl, and AgentMail. Convex, Firecrawl, and
 AgentMail run in the product. Codex helped build it. There is no OpenAI model

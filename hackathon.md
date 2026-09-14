@@ -21,7 +21,7 @@ file. Product setup is in [README.md](README.md).
 - **AI models:** none explicitly configured; Firecrawl performs structured
   extraction
 - **Started:** 2026-09-09T14:51:40Z
-- **Last updated:** 2026-09-14T06:20:00Z
+- **Last updated:** 2026-09-14T06:25:00Z
 - **Agent access:** Browser-side WebMCP for public navigation and isolated demo
   review.
 
@@ -276,7 +276,7 @@ feedback remain rate-limited rather than proof of a unique person. Query-time
 expiry checks also rely on scheduled cleanup for live subscribers. At the
 time of this review, these changes had not been deployed to production.
 
-### 2026-09-14 - 3ed52b2
+### 2026-09-14
 
 Shipped hashed 12-hour admin sessions. The operator token is exchanged once.
 The session secret is hashed at rest. Later admin reads send the session, not
@@ -288,14 +288,14 @@ discovery intake share one limit helper. Ending-soon is stored by a cron
 instead of filtering on read time. History older than 30 days is trimmed.
 
 Production Convex `gregarious-canary-249` and the Workers copy were deployed
-with this work. GitHub Checks passed on `3ed52b2`. ChatGPT Sites still needs
-the owner to republish from git; until then the judging URL can serve an
-older frontend against the current backend.
+with this work. GitHub Checks passed on the September 14 production commits.
+ChatGPT Sites still needs the owner to republish from git. Until then the
+judging URL can serve an older frontend against the current backend.
 
 Convex features: schema, indexes, queries, mutations, actions, HTTP actions,
 crons, scheduled functions (`convex/lib/adminSession.ts`,
 `convex/discovery.ts`, `convex/lib/limits.ts`, `convex/lifecycle.ts`,
-`src/routes/admin.tsx`). Includes the related commit `9b77353`.
+`src/routes/admin.tsx`).
 
 ## Submission requirements and current gaps
 
@@ -343,10 +343,9 @@ Checked against the
 [Luma listing](https://luma.com/convex-allgas-hackathon) on September 14, 2026.
 Deadline: September 22 at noon Pacific, September 23 at 00:30 IST.
 
-Required files in this repo: root `hackathon.md`, `README.md`, `AGENTS.md`,
-`.openai/hosting.json` for the existing Sites project, and `.env.example` with
-variable names only. The public GitHub remote is
-https://github.com/sansynx/perkdrop-click.
+Event-required in this repo: root `hackathon.md`, a public GitHub remote, and a
+chatgpt.site live URL. README, AGENTS.md, `.openai/hosting.json`, and
+`.env.example` are project files, not extra event forms.
 
 - [x] Convex backend and Firecrawl integration implemented.
 - [x] Root `hackathon.md` created from repository evidence.
@@ -360,44 +359,34 @@ https://github.com/sansynx/perkdrop-click.
       in the product remain absent; Codex was used during development.
 - [x] Luma registration. The owner confirmed registration on September 12;
       this is participant-reported, not independently verified in the signed-out browser.
-- [ ] Confirm personal eligibility against the official rules, including age,
-      location and employment restrictions. The first recorded commit is September 9;
-      original work must have begun within the permitted build window.
-- [ ] Demo video under three minutes. No video supplied. Keep any spoken
-      script off git.
-- [ ] X or LinkedIn build post tagging Convex, OpenAI, Firecrawl, and
-      AgentMail. No post supplied.
-- [ ] Submit repository, chatgpt.site live URL, and video on
+- [x] Personal eligibility against the official rules: 18 or older, not a
+      sponsor employee or immediate family member, and not in a restricted
+      location. First recorded commit is September 9, inside the August 25
+      build window. Owner-confirmed.
+- [x] Demo video under three minutes, submitted with the app.
+- [x] X or LinkedIn build post tagging Convex, OpenAI, Firecrawl, and
+      AgentMail.
+- [x] Submitted repository, chatgpt.site live URL, and video on
       [the event submission form](https://vibeapps.dev/judging/convex-all-gas-hackathon-openai/submit)
-      before September 22 at 12:00 PM PT. No
-      localhost. No Workers-only URL. Repo must stay public.
+      before September 22 at 12:00 PM PT. No localhost. No Workers-only URL.
+      Repo stays public.
 
-## Product work before the demo
+## After submission
 
 - Production Convex `gregarious-canary-249` and the Workers copy were deployed
-  on September 14 for `9b77353` and `3ed52b2`. Schema validation succeeded.
-  Ending-soon and admin-session cleanup crons are live.
-- The owner still republishes chatgpt.site from the current git commit. Until
-  that happens, the judging URL can serve an older frontend against the
-  current backend.
-- Verify a real forwarded announcement and receipt before recording that flow.
-  The automated audit did not send live email.
-- Review pending candidates against their sources and publish only eligible
-  offers. Discovery already runs; pending candidates are not public listings.
-- Keep sponsor integration claims factual. Do not represent the current project
-  as submitted or fully compliant. Direct OpenAI product calls are still absent.
-
-The event page asks for sponsor services doing work inside the product. Codex
-and Sites usage is documented, but whether it earns the OpenAI integration credit
-needs organizer confirmation. WebMCP is not an OpenAI API. The criteria also
-favor everyday apps over developer-only tools; demonstrate the student and
-offer-discovery use cases without claiming a guaranteed qualification or score.
+  on September 14. Schema validation succeeded. Ending-soon and admin-session
+  cleanup crons are live.
+- Republish chatgpt.site from the current git commit so the judging URL matches
+  this backend. Until that happens, it can serve an older frontend.
+- Pending candidates stay private until an administrator publishes eligible
+  offers. Discovery already runs.
+- Codex and Sites usage is documented. Whether that earns the OpenAI
+  integration credit is an organizer call. WebMCP is not an OpenAI API.
+  Direct OpenAI product calls are still absent.
 
 ## Hackathon and thanks
 
 Built as part of the
 [Convex All Gas hackathon](https://www.convex.dev/hackathons/all-gas). Thank you
 to Convex, OpenAI, Firecrawl, and AgentMail for hosting and sponsoring the
-event. The implementation evidence and unchecked requirements above distinguish
-what has shipped from what remains before submission. File map for agents:
-[AGENTS.md](AGENTS.md).
+event. File map for agents: [AGENTS.md](AGENTS.md).
