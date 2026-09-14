@@ -112,8 +112,16 @@ export async function enqueueIntake(
           ] as [string, number, number],
         ]
       : []),
-    [`domain:${new URL(url).hostname}:${day}`, 30, now + 86400000],
-    [`global:${day}`, 200, now + 86400000],
+    ...(!discoveryRunId
+      ? [
+          [`domain:${new URL(url).hostname}:${day}`, 30, now + 86400000] as [
+            string,
+            number,
+            number,
+          ],
+          [`global:${day}`, 200, now + 86400000] as [string, number, number],
+        ]
+      : []),
   ];
   const updates = [];
   for (const [key, maximum, expiresAt] of buckets) {

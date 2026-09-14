@@ -48,12 +48,12 @@ Tests sit next to the modules they cover.
 
 Distinguish implemented runtime behavior from development tools.
 
-| Sponsor   | What it does here                                                                                                            | What it does not do                                                                 |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Convex    | Database, queries, mutations, actions, crons, scheduled functions, live queries, HTTP routes, workflows, `@agentmail/convex` | The chatgpt.site frontend is not Convex static hosting. A Workers copy also exists. |
-| Firecrawl | Scheduled search on four topics and structured extraction of offer pages                                                     | It does not publish offers by itself.                                               |
-| AgentMail | Inbound `message.received` webhook, URL intake, HTML receipt from a parent Convex action                                     | Receipt is not publication. Inbox contents are not a public API.                    |
-| OpenAI    | Codex during development and ChatGPT Sites hosting                                                                           | No OpenAI model API call in the application.                                        |
+| Sponsor   | What it does here                                                                                                                             | What it does not do                                                                 |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Convex    | Database, queries, mutations, actions, crons, scheduled functions, live queries, HTTP routes, workflows, `@agentmail/convex`                  | The chatgpt.site frontend is not Convex static hosting. A Workers copy also exists. |
+| Firecrawl | Scheduled search across Devpost, student packs, hackathons, cloud credits, and related perk topics, plus structured extraction of offer pages | It does not publish offers by itself.                                               |
+| AgentMail | Inbound `message.received` webhook, URL intake, HTML receipt from a parent Convex action                                                      | Receipt is not publication. Inbox contents are not a public API.                    |
+| OpenAI    | Codex during development and ChatGPT Sites hosting                                                                                            | No OpenAI model API call in the application.                                        |
 
 WebMCP is a separate experimental browser API, not an OpenAI service integration.
 

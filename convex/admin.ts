@@ -59,7 +59,7 @@ export const discoveryStatus = query({
   handler: async (ctx, { token }) => {
     authorize(token);
     const [searches, runs] = await Promise.all([
-      ctx.db.query("discoveryQueries").take(20),
+      ctx.db.query("discoveryQueries").take(100),
       ctx.db
         .query("discoveryRuns")
         .withIndex("by_started")

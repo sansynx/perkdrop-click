@@ -3,7 +3,7 @@ import { components, internal } from "./_generated/api";
 import { v } from "convex/values";
 export const workflow = new WorkflowManager(components.workflow, {
   workpoolOptions: {
-    maxParallelism: 4,
+    maxParallelism: 10,
     defaultRetryBehavior: { maxAttempts: 3, initialBackoffMs: 65000, base: 2 },
   },
 });

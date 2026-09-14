@@ -21,7 +21,7 @@ file. Product setup is in [README.md](README.md).
 - **AI models:** none explicitly configured; Firecrawl performs structured
   extraction
 - **Started:** 2026-09-09T14:51:40Z
-- **Last updated:** 2026-09-12
+- **Last updated:** 2026-09-14
 - **Agent access:** Browser-side WebMCP for public navigation and isolated demo
   review.
 
@@ -34,12 +34,13 @@ repository is public. Making GitHub public does not start or stop searches.
    [convex/crons.ts](convex/crons.ts). Execution requires
    `DISCOVERY_ENABLED=true`, a configured Firecrawl key, and enabled search
    records.
-2. [convex/discovery.ts](convex/discovery.ts) starts at most four searches per
-   scheduled run. The default topics are cloud and API credits, student
-   benefits, open-source sponsorships, and hackathon rewards. Firecrawl searches
-   the public web with a past-month filter. The current source requests up to 20
-   results per search and queues at most five new links after duplicate checks.
-   This is bounded discovery, not an exhaustive scan of the internet.
+2. [convex/discovery.ts](convex/discovery.ts) starts every enabled search that
+   is due. Default topics include Devpost hackathon resources, MLH, student
+   packs, cloud credits, open-source sponsorships, and startup perks. Missing
+   default queries are inserted on the next scheduled run. Firecrawl searches
+   the public web with a past-month filter and up to 100 results per query.
+   Already-seen URLs are skipped. Public submission rate limits do not apply to
+   this scheduled path.
 3. URL normalization and deduplication feed the extraction workflow. Structured
    offer keys merge matching offers; this does not detect every differently
    worded duplicate.

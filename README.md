@@ -22,9 +22,9 @@ sequenceDiagram
         Mail->>Backend: Signed inbound webhook
         Backend->>Backend: Verify signature, event ID, and inbox
     else Scheduled discovery
-        Backend->>Crawler: Search four topics every 3 hours
-        Crawler-->>Backend: Up to 20 search results per topic
-        Backend->>Backend: Skip repeats, queue up to five new links
+        Backend->>Crawler: Search Devpost, student packs, and other perk topics every 3 hours
+        Crawler-->>Backend: Search results for each topic
+        Backend->>Backend: Skip repeats, queue new links for extraction
     end
     Backend->>Backend: Normalize URLs and enforce shared limits
     alt URL already received

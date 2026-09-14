@@ -668,7 +668,8 @@ function DiscoveryStatus({ token }: { token: string }) {
             {data.enabled ? "Active" : "Paused"} ·{" "}
             {data.searches.filter((search) => search.enabled).length} enabled
             searches. Recent public results are checked every three hours. Each
-            search keeps up to five new links and skips repeats.
+            search can return up to 100 links. Repeats are skipped. New links
+            are queued for extraction.
           </p>
           <p>
             Completed searches send new links for extraction and review. Only

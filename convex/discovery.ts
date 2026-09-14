@@ -1,5 +1,9 @@
 import { firecrawlRequest } from "./lib/firecrawl";
-import { internalAction, internalMutation } from "./_generated/server";
+import {
+  internalAction,
+  internalMutation,
+  type MutationCtx,
+} from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { workflow } from "./workflows";
@@ -11,12 +15,30 @@ import {
 } from "./lib/intakePolicy";
 import { enqueueIntake } from "./submissions";
 
-const defaults = [
+export const DISCOVERY_QUERIES = [
   "new free API cloud credits developer startup program announcement",
   "new student developer benefits free software program",
   "open source maintainer free credits sponsorship program",
   "hackathon free developer credits rewards new announcement",
+  "site:devpost.com hackathon prizes credits sponsors",
+  "site:devpost.com hackathon resources software API credits",
+  "devpost hackathon prize pool free cloud or API credits",
+  "site:mlh.io hackathon prizes credits sponsors",
+  "Major League Hacking hackathon sponsor credits",
+  "site:education.github.com student developer pack",
+  "GitHub Student Developer Pack free tools credits",
+  "Azure for Students free credits",
+  "Google Cloud for students free credits",
+  "AWS Activate Educate startup free credits",
+  "startup free credits Notion Figma OpenAI Anthropic",
+  "Y Combinator startup perks free credits",
+  "open source free SaaS credits DigitalOcean Netlify Vercel",
+  "student JetBrains IntelliJ free license pack",
+  "free domain students GitHub education Namecheap",
+  "hackathon sponsor API credits Twilio SendGrid MongoDB",
 ];
+
+export const SEARCH_RESULT_LIMIT = 100;
 
 export const runScheduled = internalMutation({
   args: {},
@@ -25,14 +47,14 @@ export const runScheduled = internalMutation({
     if (process.env.DISCOVERY_ENABLED !== "true") return 0;
     if (!process.env.FIRECRAWL_API_KEY?.trim())
       throw new Error("Discovery requires Firecrawl configuration");
+    await ensureQueryRecords(ctx);
     const queries = await ctx.db
       .query("discoveryQueries")
       .withIndex("by_enabled", (q) => q.eq("enabled", true))
-      .take(20);
+      .take(100);
     let started = 0;
     const now = Date.now();
     for (const item of queries) {
-      if (started >= 4) break;
       if (
         item.lastRunAt !== undefined &&
         Math.floor(now / (Math.max(3, item.cadenceHours) * 3600000)) ===
@@ -64,28 +86,43 @@ export const runScheduled = internalMutation({
   },
 });
 
+async function ensureQueryRecords(ctx: MutationCtx) {
+  const existing = await ctx.db.query("discoveryQueries").take(100);
+  const have = new Set(existing.map((item) => item.query));
+  let added = 0;
+  for (const query of DISCOVERY_QUERIES) {
+    if (have.has(query)) continue;
+    await ctx.db.insert("discoveryQueries", {
+      query,
+      enabled: true,
+      cadenceHours: 3,
+      createdAt: Date.now(),
+    });
+    added++;
+  }
+  return added;
+}
+
 export const initialize = internalMutation({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {
-    // Preserve operator configuration, including disabled searches.
     if (await ctx.db.query("discoveryQueries").first()) return 0;
-    for (const query of defaults)
-      await ctx.db.insert("discoveryQueries", {
-        query,
-        enabled: true,
-        cadenceHours: 3,
-        createdAt: Date.now(),
-      });
-    return defaults.length;
+    return await ensureQueryRecords(ctx);
   },
+});
+
+export const ensureQueries = internalMutation({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx) => ensureQueryRecords(ctx),
 });
 
 export const setThreeHourCadence = internalMutation({
   args: {},
   returns: v.number(),
   handler: async (ctx) => {
-    const queries = await ctx.db.query("discoveryQueries").take(20);
+    const queries = await ctx.db.query("discoveryQueries").take(100);
     for (const item of queries)
       await ctx.db.patch(item._id, { cadenceHours: 3 });
     return queries.length;
@@ -103,7 +140,7 @@ export const search = internalAction({
       "/search",
       {
         query: query.slice(0, 500),
-        limit: 20,
+        limit: SEARCH_RESULT_LIMIT,
         sources: ["web"],
         excludeDomains: [
           "facebook.com",
@@ -121,7 +158,7 @@ export const search = internalAction({
       throw new Error("Invalid discovery search response");
     const urls = new Set<string>();
     const identities = new Set<string>();
-    for (const item of payload.data.web.slice(0, 20)) {
+    for (const item of payload.data.web) {
       if (typeof item?.url !== "string") continue;
       try {
         const url = canonicalUrl(item.url);
@@ -152,7 +189,6 @@ export const enqueue = internalMutation({
         duplicates++;
         continue;
       }
-      if (queued >= 5) continue;
       const result = await enqueueIntake(ctx, url, undefined, runId);
       if (!result) limited++;
       else if (result.duplicate) duplicates++;
@@ -161,7 +197,7 @@ export const enqueue = internalMutation({
     await ctx.db.patch(runId, {
       status: "completed",
       finishedAt: Date.now(),
-      found: Math.min(urls.length, 5),
+      found: urls.length,
       queued,
       duplicates,
       limited,
