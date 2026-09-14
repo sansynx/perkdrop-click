@@ -24,15 +24,14 @@ function ReviewerDemo() {
   const [offers, setOffers] = useState(createDemoSession);
   const current = useRef(offers);
   const [filter, setFilter] = useState("pending");
-  const [reason, setReason] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [agentStatus, setAgentStatus] = useState(
     "Checking optional browser agent support…",
   );
 
-  function decide(id: unknown, decision: unknown, explanation: unknown) {
-    const next = decideDemoOffer(current.current, id, decision, explanation);
+  function decide(id: unknown, decision: unknown) {
+    const next = decideDemoOffer(current.current, id, decision);
     current.current = next;
     setOffers(next);
     setError("");
@@ -44,7 +43,6 @@ function ReviewerDemo() {
     current.current = next;
     setOffers(next);
     setFilter("pending");
-    setReason("");
     setError("");
     setMessage("Demo reset. All snapshot offers are ready for review.");
   }
@@ -77,15 +75,14 @@ function ReviewerDemo() {
         {
           name: "perkdrop_demo_decide",
           description:
-            "Approve or reject an isolated demo copy in this tab. Requires a review reason. Never writes to Convex, publishes offers, or changes production.",
+            "Approve or reject an isolated demo copy in this tab. Never writes to Convex, publishes offers, or changes production.",
           inputSchema: {
             type: "object",
             properties: {
               id: { type: "string" },
               decision: { type: "string", enum: ["approved", "rejected"] },
-              reason: { type: "string", minLength: 5, maxLength: 500 },
             },
-            required: ["id", "decision", "reason"],
+            required: ["id", "decision"],
             additionalProperties: false,
           },
           annotations: {
@@ -93,8 +90,7 @@ function ReviewerDemo() {
             untrustedContentHint: true,
             consequentialHint: false,
           },
-          execute: ({ id, decision, reason: explanation }) =>
-            decide(id, decision, explanation),
+          execute: ({ id, decision }) => decide(id, decision),
         },
         {
           name: "perkdrop_demo_reset",
@@ -129,10 +125,7 @@ function ReviewerDemo() {
       <main className="inner-page admin-workspace reviewer-demo">
         <div className="page-heading">
           <h1>Try the review queue.</h1>
-          <p>
-            Inspect a discovery, add your reason, and approve or reject its demo
-            copy.
-          </p>
+          <p>Inspect a discovery, then approve or reject its demo copy.</p>
         </div>
         <section className="demo-notice" aria-label="Demo safety and access">
           <strong>Isolated demo. Nothing here changes the live catalog.</strong>
@@ -169,28 +162,8 @@ function ReviewerDemo() {
             Reset demo
           </button>
         </div>
-        <div className="demo-reason">
-          <label htmlFor="demo-reason">Review reason</label>
-          <textarea
-            id="demo-reason"
-            value={reason}
-            onChange={(event) => {
-              setReason(event.target.value);
-              setError("");
-            }}
-            minLength={5}
-            maxLength={500}
-            placeholder="What did you verify, or what needs correction?"
-            aria-describedby={error ? "demo-error" : "demo-reason-help"}
-            aria-invalid={Boolean(error)}
-          />
-          <p id="demo-reason-help">
-            Use 5–500 characters. The reason is saved only with your demo
-            decision.
-          </p>
-        </div>
         {error && (
-          <p id="demo-error" className="form-error" role="alert">
+          <p className="form-error" role="alert">
             {error}
           </p>
         )}
@@ -235,14 +208,14 @@ function ReviewerDemo() {
                     Inspect claim page <ArrowSquareOut size={15} />
                   </a>
                 </div>
-                {offer.status === "pending" ? (
+                {offer.status === "pending" && (
                   <div className="candidate-actions">
                     <button
                       className="button button-primary"
-                      aria-label={`Approve demo: ${offer.title}`}
+                      aria-label={`Approve ${offer.title}`}
                       onClick={() => {
                         try {
-                          decide(offer.id, "approved", reason);
+                          decide(offer.id, "approved");
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -253,14 +226,14 @@ function ReviewerDemo() {
                       }}
                     >
                       <Check size={17} />
-                      Approve demo
+                      Approve
                     </button>
                     <button
                       className="button"
-                      aria-label={`Reject demo: ${offer.title}`}
+                      aria-label={`Reject ${offer.title}`}
                       onClick={() => {
                         try {
-                          decide(offer.id, "rejected", reason);
+                          decide(offer.id, "rejected");
                         } catch (err) {
                           setError(
                             err instanceof Error
@@ -271,13 +244,9 @@ function ReviewerDemo() {
                       }}
                     >
                       <X size={17} />
-                      Reject demo
+                      Reject
                     </button>
                   </div>
-                ) : (
-                  <p>
-                    <strong>Your demo reason:</strong> {offer.reason}
-                  </p>
                 )}
               </article>
             ))}

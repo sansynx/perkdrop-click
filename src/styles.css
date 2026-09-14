@@ -1200,33 +1200,6 @@ button:active:not(:disabled),
   border-color: var(--orange);
   background: var(--orange-soft);
 }
-.demo-reason {
-  display: grid;
-  gap: 10px;
-}
-.demo-reason label {
-  font-size: 14px;
-  font-weight: 550;
-}
-.demo-reason textarea {
-  width: 100%;
-  min-height: 88px;
-  resize: vertical;
-  border: 1px solid var(--line-strong);
-  border-radius: 8px;
-  padding: 14px;
-  font: inherit;
-  font-size: 14px;
-  background: white;
-}
-.demo-reason textarea::placeholder {
-  color: #666;
-}
-.demo-reason p {
-  margin: 0;
-  font-size: 12px;
-  color: #595959;
-}
 .demo-message {
   min-height: 24px;
   font-size: 14px;

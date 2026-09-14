@@ -83,7 +83,7 @@ Keep private: `ADMIN_REVIEW_TOKEN`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`,
 
 1. Open https://perkdrop-click.sanathr106.chatgpt.site
 2. Open https://perkdrop-click.sanathr106.chatgpt.site/reviewer-demo
-3. Approve or reject a demo card with a reason. Reload to reset.
+3. Approve or reject a demo card. Reload to reset.
 4. Open `/submit` and inspect the URL form. Forwarded-mail copy appears when
    Convex has `AGENTMAIL_INTAKE_ADDRESS`.
 5. Production `/admin` asks for the private token once, then uses a tab session.

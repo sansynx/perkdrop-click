@@ -303,7 +303,7 @@ crons, scheduled functions (`convex/lib/adminSession.ts`,
 
 The reviewer demo route is `/reviewer-demo`. It opens without credential entry
 and displays the public demo label `AllGas2026`. Three snapshots of actual
-discovered offers let judges try approval, rejection, reason validation, status
+discovered offers let judges try approval, rejection, status
 filters, and reset. Source text remains explicitly unverified; demo approval is
 not an endorsement of the offer.
 
@@ -319,7 +319,7 @@ visitors to the reviewer demo and states the compatibility limitation.
 
 - `perkdrop_navigate` opens the catalog, submission form, or demo.
 - `perkdrop_demo_list` reads the current tab's snapshot and decisions.
-- `perkdrop_demo_decide` approves or rejects a demo copy with a reason.
+- `perkdrop_demo_decide` approves or rejects a demo copy.
 - `perkdrop_demo_reset` restores the demo snapshot.
 
 The demo tools are registered only on the demo route. They cannot perform

@@ -11,11 +11,10 @@ export type DemoOffer = {
   eligibility: string[];
   concern: string;
   status: "pending" | "approved" | "rejected";
-  reason: string;
 };
 
 // Public-source fields copied from actual discoveries. No production IDs or private submissions.
-const snapshot: Omit<DemoOffer, "status" | "reason">[] = [
+const snapshot: Omit<DemoOffer, "status">[] = [
   {
     id: "demo-github-students",
     title: "GitHub Pro for Students",
@@ -66,7 +65,6 @@ export function createDemoSession(): DemoOffer[] {
     ...offer,
     eligibility: [...offer.eligibility],
     status: "pending",
-    reason: "",
   }));
 }
 
@@ -74,16 +72,9 @@ export function decideDemoOffer(
   offers: DemoOffer[],
   id: unknown,
   decision: unknown,
-  reason: unknown,
 ): DemoOffer[] {
   if (decision !== "approved" && decision !== "rejected")
     throw new Error("Choose approve or reject.");
-  if (
-    typeof reason !== "string" ||
-    reason.trim().length < 5 ||
-    reason.trim().length > 500
-  )
-    throw new Error("Add a review reason between 5 and 500 characters.");
   const offer = offers.find((item) => item.id === id);
   if (!offer) throw new Error("Choose an offer in this demo.");
   if (offer.status !== "pending")
@@ -91,8 +82,6 @@ export function decideDemoOffer(
       "This demo offer was already reviewed. Reset the demo to try again.",
     );
   return offers.map((item) =>
-    item.id === id
-      ? { ...item, status: decision, reason: reason.trim() }
-      : item,
+    item.id === id ? { ...item, status: decision } : item,
   );
 }
