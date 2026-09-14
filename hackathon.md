@@ -81,8 +81,8 @@ sequenceDiagram
     Sender->>Mail: Forward a public announcement
     Mail->>Backend: POST signed message.received webhook
     Backend->>Backend: Verify Svix signature and deduplicate event ID
-    Backend->>Backend: Require the configured inbox and a valid sender
-    Backend->>Backend: Extract up to five URLs and enforce intake limits
+    Backend->>Backend: Match the configured inbox address or inbox id
+    Backend->>Backend: Reserve receipt limits, then extract up to five URLs
     Backend->>Backend: Reuse duplicate jobs or queue new workflows
     par Receipt delivery, within receipt limits
         Backend->>Mail: Reply from a parent action
@@ -93,13 +93,14 @@ sequenceDiagram
     and Verification for new jobs
         Backend->>Crawler: Extract original offer page
         Crawler-->>Backend: Terms, eligibility, claim URL, and evidence
-        Backend->>Backend: Deduplicate offer key and assess publication policy
+        Backend->>Backend: Merge matching offer keys and assess publication policy
         opt Human review required
             Backend-->>Admin: Candidate with evidence and review reasons
-            Admin->>Backend: Authorized decision and reason
+            Admin->>Backend: Exchange the operator token for a hashed session
+            Admin->>Backend: Decide with that session, not the token
         end
         alt Approved and unexpired
-            Backend->>Backend: Upsert published offer
+            Backend->>Backend: Upsert published offer and catalog card fields
             Backend-->>Sender: Catalog live query receives the offer
         else Pending or rejected
             Backend->>Backend: Keep candidate private

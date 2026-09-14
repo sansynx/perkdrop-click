@@ -2,7 +2,11 @@ import type { MutationCtx } from "../_generated/server";
 
 export async function reserveLimit(
   ctx: MutationCtx,
-  buckets: readonly (readonly [key: string, maximum: number, expiresAt: number])[],
+  buckets: readonly (readonly [
+    key: string,
+    maximum: number,
+    expiresAt: number,
+  ])[],
 ) {
   const updates = [];
   for (const [key, maximum, expiresAt] of buckets) {

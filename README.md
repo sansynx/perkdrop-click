@@ -8,6 +8,19 @@ See [AGENTS.md](AGENTS.md) for the code map and safe review instructions.
 ## How it works
 
 ```mermaid
+flowchart LR
+    Visitor --> Sites["chatgpt.site"]
+    Visitor --> Workers["Cloudflare Workers"]
+    Visitor --> Mail["AgentMail inbox"]
+    Sites --> Convex
+    Workers --> Convex
+    Mail -->|signed webhook| Convex
+    Convex --> Firecrawl
+    Admin -->|"token once, then hashed 12-hour session"| Convex
+    Convex --> Catalog["Live catalog"]
+```
+
+```mermaid
 sequenceDiagram
     autonumber
     actor Visitor
@@ -22,27 +35,33 @@ sequenceDiagram
         Mail->>Backend: Signed inbound webhook
         Backend->>Backend: Verify signature, event ID, and inbox
     else Scheduled discovery
-        Backend->>Crawler: Search product intents, then hosts from published offers
-        Crawler-->>Backend: Search results for each topic
-        Backend->>Backend: Skip repeats, queue new links for extraction
+        Backend->>Crawler: Search five product intents every three hours
+        Backend->>Crawler: Rotate published-offer hosts on a slower cadence
+        Crawler-->>Backend: Up to 20 results per search
+        Backend->>Backend: Apply the daily discovery budget, skip repeats, queue new links
     end
-    Backend->>Backend: Normalize URLs and enforce shared limits
+    Backend->>Backend: Normalize URLs and reserve shared intake limits
     alt URL already received
         Backend-->>Visitor: Reuse existing submission status
     else New URL
         Backend->>Crawler: Extract terms and source evidence
         Crawler-->>Backend: Structured candidate
-        Backend->>Backend: Match offer key and assess trust and terms
+        Backend->>Backend: Merge matching offer keys and assess trust and terms
         opt Candidate needs human review
             Backend-->>Admin: Show evidence and review reasons
-            Admin->>Backend: Start a session, then approve or reject
+            Admin->>Backend: Exchange the operator token for a hashed session
+            Admin->>Backend: Approve or reject with that session
         end
         alt Approved and unexpired
-            Backend->>Backend: Publish the offer
+            Backend->>Backend: Publish the offer and card fields
             Backend-->>Visitor: Live query updates the catalog
         else Pending or rejected
             Backend->>Backend: Keep the offer out of the catalog
         end
+    end
+    opt Later recheck, expiry, or takedown
+        Backend->>Backend: Remove or flag the publication
+        Backend-->>Visitor: Live query drops the offer
     end
 ```
 
