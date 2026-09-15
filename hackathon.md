@@ -21,7 +21,7 @@ file. Product setup is in [README.md](README.md).
 - **AI models:** none explicitly configured; Firecrawl performs structured
   extraction
 - **Started:** 2026-09-09T14:51:40Z
-- **Last updated:** 2026-09-14T06:25:00Z
+- **Last updated:** 2026-09-15T12:00:00Z
 - **Agent access:** Browser-side WebMCP for public navigation and isolated demo
   review.
 
@@ -36,26 +36,33 @@ repository is public. Making GitHub public does not start or stop searches.
    records.
 2. [convex/discovery.ts](convex/discovery.ts) starts every enabled search that
    is due. Explore searches are five product intents (credits, students,
-   hackathons, startups, open source). Exploit searches use hosts from published
-   offers and trusted pages, scoped to a path on broad domains. Source searches
-   rotate eight at a time. Leftover vendor strings are disabled. Firecrawl
-   searches the public web with a past-month filter and up to 20 results per
-   query. A daily discovery budget shares Firecrawl spend across those runs.
-   Already-seen URLs are skipped. Public domain and global caps do not apply to
-   this scheduled path. Discovery has its own daily budget.
+   programs, startups, open source). Queries ask for currently open credits and
+   developer programs, not prize pools. Exploit searches use hosts from
+   published offers and trusted pages, scoped to a path on broad domains. Source
+   searches rotate eight at a time. Leftover vendor strings are disabled.
+   Firecrawl searches the public web with a past-month filter and up to 20
+   results per query. A daily discovery budget shares Firecrawl spend across
+   those runs. Already-seen source and claim URLs are skipped. Article hosts are
+   not queued. Public domain and global caps do not apply to this scheduled
+   path. Discovery has its own daily budget.
 3. URL normalization and deduplication feed the extraction workflow. Structured
-   offer keys merge matching offers; this does not detect every differently
-   worded duplicate.
+   offer keys merge matching offers. A second key on the provider claim URL
+   catches the same perk copied from another article. This does not detect every
+   differently worded duplicate.
 4. [convex/lib/intakePolicy.ts](convex/lib/intakePolicy.ts) checks explicit
    source trust, terms, eligibility, regions, evidence, required details, and
-   card or application requirements. Non-offers and expired offers are rejected.
+   card or application requirements. Non-offers, ended programs, hackathon prize
+   lists, and third-party article claim URLs are rejected. If extraction starts
+   on an article, intake follows the provider claim page and reads that instead.
    Offers that pass every check can publish automatically; uncertain candidates
    wait for administrator review.
 5. [convex/intake.ts](convex/intake.ts) publishes approved candidates.
-   Administrators can also approve reviewed candidates through
-   [convex/admin.ts](convex/admin.ts). Scheduled revalidation and expiry
-   handling maintain the published catalog. Forwarded AgentMail messages enter
-   the same intake path through [convex/email.ts](convex/email.ts).
+   Administrators can approve, reject, unpublish, or return a live offer to
+   review through [convex/admin.ts](convex/admin.ts). Scheduled revalidation and
+   expiry handling maintain the published catalog. Forwarded AgentMail messages
+   enter the same intake path through [convex/email.ts](convex/email.ts).
+   Public cards show the provider claim page, and a separate found-on URL when
+   the first sighting was a different page.
 
 No source is trusted by default. An empty public catalog can therefore coexist
 with successful discovery. During the September 12 release check, the database had
@@ -297,6 +304,23 @@ crons, scheduled functions (`convex/lib/adminSession.ts`,
 `convex/discovery.ts`, `convex/lib/limits.ts`, `convex/lifecycle.ts`,
 `src/routes/admin.tsx`).
 
+### 2026-09-15
+
+Catalog quality pass. Discovery no longer searches hackathon prize pools.
+Intake rejects ended offers and prize-only pages, follows provider claim URLs
+instead of third-party articles, and remembers both the source URL and the
+claim URL so the same perk is not queued twice. Admin can return a mistakenly
+approved offer to review. Public rows use one layout, short value text, the
+provider host as the claim link, and Found on when the first sighting differs.
+
+A local `pnpm run dev` against a stopped anonymous Convex at `127.0.0.1:3210`
+used to throw the root error page. Catalog loaders now fail closed, and live
+queries skip when no Convex client is configured.
+
+Checks run for this change: Convex `tsc`, frontend `tsc`, 84 Vitest tests.
+Evidence: `convex/lib/intakePolicy.ts`, `convex/discovery.ts`, `convex/admin.ts`,
+`src/components/resource-row.tsx`.
+
 ## Submission requirements and current gaps
 
 ### Reviewer access
@@ -374,8 +398,9 @@ chatgpt.site live URL. README, AGENTS.md, `.openai/hosting.json`, and
 ## After submission
 
 - Production Convex `gregarious-canary-249` and the Workers copy were deployed
-  on September 14. Schema validation succeeded. Ending-soon and admin-session
-  cleanup crons are live.
+  on September 14, then again on September 15 with the catalog quality pass.
+  Schema validation succeeded. Ending-soon and admin-session cleanup crons are
+  live. Return-to-review is an authorized admin mutation.
 - Republish chatgpt.site from the current git commit so the judging URL matches
   this backend. Until that happens, it can serve an older frontend.
 - Pending candidates stay private until an administrator publishes eligible

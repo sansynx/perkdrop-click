@@ -89,6 +89,8 @@ Keep private: `ADMIN_REVIEW_TOKEN`, `FIRECRAWL_API_KEY`, `AGENTMAIL_API_KEY`,
 5. Production `/admin` asks for the private token once, then uses a tab session.
    Production `/admin` is intentionally closed. Do not ask this repo for that
    token.
+6. Local `pnpm run dev` needs `pnpm exec convex dev` or `VITE_CONVEX_URL`. See
+   [README.md](README.md). A stopped local Convex should not crash the homepage.
 
 ## Checks
 

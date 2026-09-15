@@ -13,7 +13,7 @@ import { reserveLimit } from "./lib/limits";
 
 export const DISCOVERY_DAILY_LIMIT = 80;
 
-async function rememberSeenUrl(
+export async function rememberSeenUrl(
   ctx: MutationCtx,
   url: string,
   jobId: Id<"intakeJobs">,

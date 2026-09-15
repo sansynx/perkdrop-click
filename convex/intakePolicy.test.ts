@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 import {
   assess,
   canonicalUrl,
+  claimKey,
+  displayValue,
+  isArticleHost,
+  isEventPrize,
   isLowValueDiscovery,
   isPerkdropHost,
   offerKey,
   providerLogo,
+  publicMeta,
   safeRewardImage,
+  shouldFollowClaim,
   sourceFavicon,
   urlIdentity,
   type Offer,
@@ -122,5 +128,54 @@ describe("submission policy", () => {
     expect(isLowValueDiscovery("https://education.github.com/pack")).toBe(
       false,
     );
+  });
+  it("rejects prize-only events, ended offers, and article claim pages", () => {
+    expect(
+      isEventPrize({
+        ...offer,
+        title: "City Hackathon",
+        description: "The total prize pool is $50,000.",
+        valueText: "$50,000 cash",
+      }),
+    ).toBe(true);
+    expect(
+      isEventPrize({
+        ...offer,
+        title: "Startup credits",
+        description: "Cloud credits for startups.",
+        valueText: "$500 credits",
+      }),
+    ).toBe(false);
+    expect(isArticleHost("opportunitiesforyouth.org")).toBe(true);
+    expect(isArticleHost("resend.com")).toBe(false);
+    expect(
+      shouldFollowClaim(
+        "https://opportunitiesforyouth.org/claude",
+        "https://claude.com/programs/startups",
+      ),
+    ).toBe(true);
+    expect(
+      shouldFollowClaim(
+        "https://resend.com/startups",
+        "https://resend.com/startups",
+      ),
+    ).toBe(false);
+    expect(
+      assess(
+        { ...offer, claimUrl: "https://medium.com/post" },
+        offer.evidence,
+        true,
+        1,
+      ).reasons,
+    ).toContain("Claim is a third-party article, not the provider page");
+    expect(claimKey("https://www.resend.com/startups/")).toBe(
+      "claim:resend.com/startups",
+    );
+    expect(
+      displayValue(
+        "credits to cover the monthly subscription costs of Google Earth's Professional and Professional Advanced plans",
+      ),
+    ).toBe("credits to cover the monthly subscriptio…");
+    expect(publicMeta("Check source")).toBe("");
   });
 });

@@ -2,7 +2,13 @@ import { query, type QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { providerLogo, safeRewardImage } from "./lib/intakePolicy";
+import {
+  displayValue,
+  providerLogo,
+  publicMeta,
+  safeRewardImage,
+  urlIdentity,
+} from "./lib/intakePolicy";
 const dropValidator = v.object({
   resourceId: v.id("resources"),
   requiresApplication: v.boolean(),
@@ -27,10 +33,23 @@ const dropValidator = v.object({
   requiresCard: v.boolean(),
   claimUrl: v.string(),
   imageUrl: v.optional(v.string()),
+  foundOn: v.optional(v.string()),
 });
+function extraFoundOn(claimUrl: string, sources: { sourceUrl: string }[]) {
+  for (const source of sources) {
+    try {
+      if (urlIdentity(source.sourceUrl) !== urlIdentity(claimUrl))
+        return { foundOn: source.sourceUrl };
+    } catch {
+      continue;
+    }
+  }
+  return {};
+}
 function cardFromPublication(
   row: Doc<"resources">,
   published: Doc<"publishedOffers">,
+  sources: { sourceUrl: string }[],
 ) {
   if (!published.title || !published.slug || !published.claimUrl) return null;
   const claimUrl = published.claimUrl;
@@ -46,11 +65,13 @@ function cardFromPublication(
     logoUrl: published.logoUrl ?? providerLogo(claimUrl, provider) ?? "",
     title: published.title,
     description: published.description ?? row.description,
-    value: published.valueText?.trim() || row.valueText?.trim() || "See offer",
+    value: displayValue(
+      published.valueText?.trim() || row.valueText?.trim() || "",
+    ),
     category: published.category || row.category,
     resourceType: row.resourceType,
-    eligibility: published.eligibility || "Check source",
-    region: published.region || "Check source",
+    eligibility: publicMeta(published.eligibility ?? ""),
+    region: publicMeta(published.region ?? ""),
     source: claimUrl,
     sourceType: "Verified submission",
     ago: "Published",
@@ -58,6 +79,7 @@ function cardFromPublication(
     confirmed: `${row.confirmedCount ?? 0} community confirmations`,
     requiresCard: published.requiresCard ?? row.requiresCard,
     claimUrl,
+    ...extraFoundOn(claimUrl, sources),
     ...(safeRewardImage(published.imageUrl, claimUrl)
       ? { imageUrl: safeRewardImage(published.imageUrl, claimUrl) }
       : {}),
@@ -81,21 +103,21 @@ async function display(
           .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
           .unique()
       : published;
+  const sources = await ctx.db
+    .query("resourceSources")
+    .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
+    .collect();
   if (publishedRow) {
-    const card = cardFromPublication(row, publishedRow);
+    const card = cardFromPublication(row, publishedRow, sources);
     if (card) return card;
   }
   const claimUrl = row.resolvedClaimUrl ?? row.originalClaimUrl ?? "";
-  const [provider, version, source] = await Promise.all([
+  const [provider, version] = await Promise.all([
     ctx.db.get(row.providerId),
     ctx.db
       .query("resourceVersions")
       .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
       .order("desc")
-      .first(),
-    ctx.db
-      .query("resourceSources")
-      .withIndex("by_resource", (q) => q.eq("resourceId", row._id))
       .first(),
   ]);
   return {
@@ -108,18 +130,19 @@ async function display(
     logoUrl: provider?.logoUrl ?? providerLogo(claimUrl, provider?.name) ?? "",
     title: row.title,
     description: row.description,
-    value: row.valueText?.trim() || "See offer",
+    value: displayValue(row.valueText?.trim() || ""),
     category: row.category,
     resourceType: row.resourceType,
-    eligibility: version?.eligibility.join(", ") || "Check source",
-    region: version?.regions.join(", ") || "Check source",
-    source: source?.sourceUrl ?? "",
+    eligibility: publicMeta(version?.eligibility.join(", ") || ""),
+    region: publicMeta(version?.regions.join(", ") || ""),
+    source: claimUrl,
     sourceType: "Verified submission",
     ago: "Published",
     claimed: `${row.claimedCount ?? 0} claimed`,
     confirmed: `${row.confirmedCount ?? 0} community confirmations`,
     requiresCard: row.requiresCard,
     claimUrl,
+    ...extraFoundOn(claimUrl, sources),
     ...(safeRewardImage(publishedRow?.imageUrl, claimUrl)
       ? { imageUrl: safeRewardImage(publishedRow?.imageUrl, claimUrl) }
       : {}),

@@ -6,7 +6,7 @@ import {
   Users,
   WarningCircle,
 } from "@phosphor-icons/react";
-import type { Drop } from "../lib/catalog";
+import { hostOf, visibleMeta, type Drop } from "../lib/catalog";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { backend } from "../lib/convex-client";
@@ -16,11 +16,14 @@ import { CommunityFeedback } from "../components/community-feedback";
 
 export const Route = createFileRoute("/drop/$slug")({
   loader: async ({ params }) => {
-    const drop = backend
-      ? await backend.query(api.catalog.get, { slug: params.slug })
-      : null;
-    if (!drop) throw notFound();
-    return drop;
+    if (!backend) throw notFound();
+    try {
+      const drop = await backend.query(api.catalog.get, { slug: params.slug });
+      if (!drop) throw notFound();
+      return drop;
+    } catch {
+      throw notFound();
+    }
   },
   head: ({ loaderData }) => ({
     meta: [
@@ -64,6 +67,8 @@ function LiveDetail({
   return <Detail drop={drop ?? undefined} />;
 }
 function Detail({ drop }: { drop?: Drop }) {
+  const eligibility = drop ? visibleMeta(drop.eligibility) : "";
+  const region = drop ? visibleMeta(drop.region) : "";
   return (
     <div className="app-shell">
       <SiteHeader />
@@ -102,25 +107,28 @@ function Detail({ drop }: { drop?: Drop }) {
                 )}
                 <section className="detail-section">
                   <h2>What's included</h2>
-                  <p>
-                    {drop.description}
-                    {drop.value.trim() &&
-                    drop.value.trim().toLowerCase() !== "see offer"
-                      ? ` The listed value is ${drop.value.toLowerCase()}.`
-                      : ""}
-                  </p>
+                  <p>{drop.description}</p>
                 </section>
                 <section className="detail-section">
                   <h2>Is this for you?</h2>
                   <ul>
                     <li>
                       <Users size={16} />
-                      {drop.eligibility}
+                      {eligibility || "Check the provider page"}
                     </li>
-                    <li>
-                      <Globe size={16} />
-                      {drop.region}
-                    </li>
+                    {region ? <li>{region}</li> : null}
+                    {drop.claimUrl ? (
+                      <li>
+                        <Globe size={16} />
+                        <a
+                          href={drop.claimUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {hostOf(drop.claimUrl) || "Claim page"}
+                        </a>
+                      </li>
+                    ) : null}
                     {drop.requiresCard !== undefined && (
                       <li>
                         <Check size={16} />
@@ -160,14 +168,22 @@ function Detail({ drop }: { drop?: Drop }) {
                     <dt>Type</dt>
                     <dd>{drop.resourceType}</dd>
                   </div>
+                  {eligibility ? (
+                    <div>
+                      <dt>Available to</dt>
+                      <dd>{eligibility}</dd>
+                    </div>
+                  ) : null}
                   <div>
-                    <dt>Available to</dt>
-                    <dd>{drop.eligibility}</dd>
+                    <dt>Claim page</dt>
+                    <dd>{drop.claimUrl || drop.source}</dd>
                   </div>
-                  <div>
-                    <dt>Source</dt>
-                    <dd>{drop.source}</dd>
-                  </div>
+                  {drop.foundOn ? (
+                    <div>
+                      <dt>Found on</dt>
+                      <dd>{drop.foundOn}</dd>
+                    </div>
+                  ) : null}
                 </dl>
                 {drop.claimUrl ? (
                   <a

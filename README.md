@@ -70,8 +70,10 @@ sequenceDiagram
 ```
 
 Three intake paths share one queue: a public URL on `/submit`, a forwarded
-email, or scheduled Firecrawl search. Matching offer keys merge duplicates, including the same perk with a new
-expiry date. No domain is trusted by default. Finding a link does not publish it.
+email, or scheduled Firecrawl search. Matching offer keys and matching claim
+URLs merge duplicates, including the same perk with a new expiry date. Article
+roundups are not treated as the claim page. No domain is trusted by default.
+Finding a link does not publish it.
 
 Rechecks take up to 25 due offers every two hours. Changed or repeatedly unverifiable
 offers leave the catalog pending review. Expired offers are removed.
@@ -132,9 +134,14 @@ Use [.env.example](.env.example) to add `VITE_CONVEX_URL` to the ignored
 pnpm run dev
 ```
 
+Keep `convex dev` running. It writes your deployment's `VITE_CONVEX_URL` into
+the ignored `.env.local`. Use that URL, not someone else's Convex cloud host.
+`pnpm run dev` alone against a stopped local backend used to crash the homepage.
+Catalog loaders now fail closed.
+
 | Setting                    | Notes                                                             |
 | -------------------------- | ----------------------------------------------------------------- |
-| `VITE_CONVEX_URL`          | Public Convex client URL. Safe to embed in the website.           |
+| `VITE_CONVEX_URL`          | Public Convex client URL from `convex dev`. Do not copy another project's host. |
 | `FIRECRAWL_API_KEY`        | Convex secret.                                                    |
 | `ADMIN_REVIEW_TOKEN`       | Convex secret, at least 32 characters. Exchanged for a session.   |
 | `DISCOVERY_ENABLED`        | Set `true` on Convex to run scheduled search.                     |

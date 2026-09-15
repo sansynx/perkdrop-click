@@ -149,6 +149,7 @@ const item = v.object({
   lastReason: v.optional(v.string()),
   terms: v.array(v.string()),
   logoUrl: v.optional(v.string()),
+  resourceId: v.optional(v.id("resources")),
 });
 export const queue = query({
   args: {
@@ -231,6 +232,7 @@ export const queue = query({
             candidate.provider,
             details?.logoUrl,
           ),
+          ...(details?.resourceId ? { resourceId: details.resourceId } : {}),
         };
       }),
     );
@@ -445,7 +447,7 @@ export const liveOffers = query({
     const hydrated = await Promise.all(
       result.page.map(async (row) => {
         const resource = await ctx.db.get(row.resourceId);
-        if (!resource || resource.status !== "active") return null;
+        if (!resource || resource.status === "archived") return null;
         if (row.slug && row.title && row.claimUrl) {
           return {
             resourceId: resource._id,
@@ -490,8 +492,12 @@ export const unpublish = mutation({
     const reason = args.reason?.trim() || "Removed by administrator.";
     if (reason.length > 500) throw new Error("Takedown note is too long");
     const resource = await ctx.db.get(args.resourceId);
-    if (!resource || resource.status !== "active")
-      throw new Error("Only active offers can be unpublished");
+    if (
+      !resource ||
+      resource.status === "archived" ||
+      resource.status === "candidate"
+    )
+      throw new Error("Only live offers can be unpublished");
     const now = Date.now();
     await ctx.db.patch(resource._id, {
       status: "archived",
@@ -518,6 +524,56 @@ export const unpublish = mutation({
       await ctx.db.patch(details.jobId, {
         status: "rejected",
         message: "This offer has been removed from the public catalog.",
+        updatedAt: now,
+      });
+    }
+    return null;
+  },
+});
+export const revertToReview = mutation({
+  args: {
+    session: v.string(),
+    resourceId: v.id("resources"),
+    reason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await authorizeSession(ctx, args.session);
+    const reason = args.reason?.trim() || "Returned to review.";
+    if (reason.length > 500) throw new Error("Review note is too long");
+    const resource = await ctx.db.get(args.resourceId);
+    if (
+      !resource ||
+      resource.status === "archived" ||
+      resource.status === "candidate"
+    )
+      throw new Error("Only live offers can return to review");
+    const now = Date.now();
+    await ctx.db.patch(resource._id, {
+      status: "archived",
+      archivedAt: now,
+      updatedAt: now,
+    });
+    await removePublication(ctx, resource._id);
+    const details = await ctx.db
+      .query("candidateDetails")
+      .withIndex("by_resource", (q) => q.eq("resourceId", resource._id))
+      .unique();
+    if (details) {
+      await ctx.db.patch(details.candidateId, {
+        status: "pending",
+        reviewedAt: now,
+      });
+      await ctx.db.insert("reviewAudit", {
+        candidateId: details.candidateId,
+        decision: "reopened",
+        reason,
+        actor: "administrator",
+        createdAt: now,
+      });
+      await ctx.db.patch(details.jobId, {
+        status: "pending",
+        message: "Returned to the review queue.",
         updatedAt: now,
       });
     }

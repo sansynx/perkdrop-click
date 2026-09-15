@@ -56,13 +56,114 @@ export function urlVariants(input: string): string[] {
   }
   return [...variants];
 }
+const ARTICLE_HOSTS = [
+  "medium.com",
+  "substack.com",
+  "linkedin.com",
+  "news.ycombinator.com",
+  "reddit.com",
+  "dev.to",
+  "hashnode.com",
+  "hashnode.dev",
+  "techcrunch.com",
+  "thenewstack.io",
+  "opportunitiesforyouth.org",
+  "startupgrantsindia.com",
+  "wikipedia.org",
+  "youtube.com",
+  "facebook.com",
+  "twitter.com",
+  "x.com",
+  "quora.com",
+];
+
+export function hostnameOf(input: string) {
+  return new URL(canonicalUrl(input)).hostname
+    .replace(/^www\./, "")
+    .toLowerCase();
+}
+
+export function registrableDomain(host: string) {
+  const parts = host
+    .replace(/^www\./, "")
+    .toLowerCase()
+    .split(".");
+  return parts.length < 2 ? host.toLowerCase() : parts.slice(-2).join(".");
+}
+
+export function isArticleHost(host: string) {
+  const name = host.replace(/^www\./, "").toLowerCase();
+  return ARTICLE_HOSTS.some(
+    (domain) => name === domain || name.endsWith(`.${domain}`),
+  );
+}
+
 export function isLowValueDiscovery(input: string): boolean {
   try {
     const url = new URL(canonicalUrl(input));
+    if (isArticleHost(url.hostname)) return true;
     return /\/(discussions|issues|pulls?|commits?|wiki)\b/i.test(url.pathname);
   } catch {
     return true;
   }
+}
+
+export function shouldFollowClaim(sourceUrl: string, claimUrl: string) {
+  try {
+    if (urlIdentity(sourceUrl) === urlIdentity(claimUrl)) return false;
+    if (isArticleHost(hostnameOf(claimUrl))) return false;
+    const sourceHost = hostnameOf(sourceUrl);
+    return (
+      isArticleHost(sourceHost) ||
+      registrableDomain(sourceHost) !== registrableDomain(hostnameOf(claimUrl))
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function claimKey(claimUrl: string) {
+  return `claim:${urlIdentity(claimUrl)}`;
+}
+
+export function displayValue(value: string) {
+  const text = value.trim().replace(/\s+/g, " ");
+  if (!text || /^see offer$/i.test(text)) return "See offer";
+  if (text.length <= 42) return text;
+  const clause = text.split(/[.!?;]/)[0]?.trim() || text;
+  if (clause.length <= 42) return clause;
+  return `${clause.slice(0, 40).trimEnd()}…`;
+}
+
+export function publicMeta(value: string) {
+  const text = value.trim();
+  if (!text || /^check source$/i.test(text)) return "";
+  return text;
+}
+
+function offerBlob(offer: Offer, markdown = "") {
+  return `${offer.title} ${offer.description} ${offer.valueText} ${markdown}`.toLowerCase();
+}
+
+export function isEventPrize(offer: Offer) {
+  const blob = offerBlob(offer);
+  const credits =
+    /\b(credits?|free (plan|tier|api|account)|student pack|startup program)\b/;
+  if (
+    /\b(prize pool|cash prize|total prize|winner takes?|grand prize)\b/.test(
+      blob,
+    ) &&
+    !credits.test(blob)
+  )
+    return true;
+  return /\b(hackathon|hack day)\b/.test(blob) && !credits.test(blob);
+}
+
+export function looksEnded(offer: Offer, markdown: string, now: number) {
+  if (offer.expiresAt !== undefined && offer.expiresAt <= now) return true;
+  return /\b(applications? (are |have )?closed|winners? announced|has (ended|concluded)|no longer available|this (offer|program|event) has ended)\b/i.test(
+    offerBlob(offer, markdown),
+  );
 }
 export function isPerkdropHost(host: string) {
   const name = host.toLowerCase().replace(/\.$/, "");
@@ -127,10 +228,20 @@ export function assess(
       decision: "rejected" as const,
       reasons: ["No concrete offer found"],
     };
-  if (offer.expiresAt !== undefined && offer.expiresAt <= now)
-    return { decision: "rejected" as const, reasons: ["Offer has expired"] };
+  if (looksEnded(offer, markdown, now))
+    return { decision: "rejected" as const, reasons: ["Offer has ended"] };
+  if (isEventPrize(offer))
+    return {
+      decision: "rejected" as const,
+      reasons: ["Hackathon prize, not an ongoing benefit"],
+    };
   try {
-    canonicalUrl(offer.claimUrl);
+    const claimHost = hostnameOf(offer.claimUrl);
+    if (isArticleHost(claimHost))
+      return {
+        decision: "rejected" as const,
+        reasons: ["Claim is a third-party article, not the provider page"],
+      };
   } catch {
     reasons.push("Claim URL is missing or unsafe");
   }

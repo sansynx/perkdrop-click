@@ -47,8 +47,8 @@ it("keeps explore searches as five product intents, not vendors or UI shelves", 
         ),
     ),
   ).toBe(true);
-  expect(DISCOVERY_QUERIES.some((query) => query.includes("AI & APIs"))).toBe(
-    false,
+  expect(DISCOVERY_QUERIES.every((query) => !/\bprizes?\b/i.test(query))).toBe(
+    true,
   );
 });
 

@@ -55,7 +55,11 @@ it("atomically coalesces simultaneous tracking URL variants", async () => {
 });
 it("merges exact offers, preserves variants, and publishes approvals once", async () => {
   const t = setup();
-  async function finish(url: string, valueText = "$100") {
+  async function finish(
+    url: string,
+    valueText = "$100",
+    claimUrl = offer.claimUrl,
+  ) {
     const jobId = await t.run((ctx) =>
       ctx.db.insert("intakeJobs", {
         canonicalUrl: url,
@@ -69,7 +73,7 @@ it("merges exact offers, preserves variants, and publishes approvals once", asyn
       jobId,
       url,
       finalUrl: url,
-      offer: { ...offer, valueText },
+      offer: { ...offer, valueText, claimUrl },
       markdown: offer.evidence,
     });
     return jobId;
@@ -77,10 +81,15 @@ it("merges exact offers, preserves variants, and publishes approvals once", asyn
   await finish("https://example.com/one");
   await finish("https://example.com/two");
   await finish("https://example.com/three", "$200");
+  await finish(
+    "https://medium.com/some-post",
+    "$100",
+    "https://resend.com/startups",
+  );
   const candidates = await t.run((ctx) =>
     ctx.db.query("resourceCandidates").collect(),
   );
-  expect(candidates).toHaveLength(2);
+  expect(candidates).toHaveLength(1);
   await expect(
     t.query(api.admin.queue, {
       session: "wrong",
@@ -110,7 +119,7 @@ it("merges exact offers, preserves variants, and publishes approvals once", asyn
   expect(page.page[0].logoUrl).toContain("simpleicons.org/resend");
   expect(
     await t.run((ctx) => ctx.db.query("resourceSources").collect()),
-  ).toHaveLength(2);
+  ).toHaveLength(4);
   const search = await t.query(api.catalog.page, {
     category: "Everything",
     search: "email",

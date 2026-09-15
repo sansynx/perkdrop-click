@@ -1,7 +1,7 @@
 import { useState, type CSSProperties } from "react";
 import { Link } from "@tanstack/react-router";
 import { ArrowUpRight, Clock, Globe } from "@phosphor-icons/react";
-import type { Drop } from "../lib/catalog";
+import { hostOf, visibleMeta, type Drop } from "../lib/catalog";
 
 export function ProviderMark({ drop }: { drop: Drop }) {
   const [failed, setFailed] = useState(false);
@@ -26,6 +26,9 @@ export function ProviderMark({ drop }: { drop: Drop }) {
 }
 
 export function ResourceRow({ drop, index }: { drop: Drop; index: number }) {
+  const host = hostOf(drop.claimUrl || drop.source);
+  const eligibility = visibleMeta(drop.eligibility);
+  const region = visibleMeta(drop.region);
   return (
     <article className="resource-row" style={{ "--i": index } as CSSProperties}>
       <ProviderMark drop={drop} />
@@ -43,17 +46,24 @@ export function ResourceRow({ drop, index }: { drop: Drop; index: number }) {
         </Link>
         <p>{drop.description}</p>
         <div className="resource-meta">
-          <span>
-            <Globe size={13} />
-            {drop.region}
-          </span>
-          <span>{drop.eligibility}</span>
-          {drop.expires && (
+          {host ? (
+            <a
+              href={drop.claimUrl || drop.source}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Globe size={13} />
+              {host}
+            </a>
+          ) : null}
+          {eligibility ? <span>{eligibility}</span> : null}
+          {region && region !== eligibility ? <span>{region}</span> : null}
+          {drop.expires ? (
             <span>
               <Clock size={13} />
               {drop.expires}
             </span>
-          )}
+          ) : null}
         </div>
       </div>
       <div className="resource-value">

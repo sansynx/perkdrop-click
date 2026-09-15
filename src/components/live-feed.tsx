@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { ResourceRow } from "./resource-row";
+import { backend } from "../lib/convex-client";
 import type { FunctionReturnType } from "convex/server";
 export function LiveFeed({
   audience,
@@ -17,13 +18,18 @@ export function LiveFeed({
   initialData?: FunctionReturnType<typeof api.catalog.page> | null;
 }) {
   const [cursors, setCursors] = useState<(string | null)[]>([null]);
-  const live = useQuery(api.catalog.page, {
-    audience,
-    search,
-    category,
-    endingSoon,
-    paginationOpts: { numItems: 5, cursor: cursors[cursors.length - 1] },
-  });
+  const live = useQuery(
+    api.catalog.page,
+    backend
+      ? {
+          audience,
+          search,
+          category,
+          endingSoon,
+          paginationOpts: { numItems: 5, cursor: cursors[cursors.length - 1] },
+        }
+      : "skip",
+  );
   const result = live ?? (cursors.length === 1 ? initialData : undefined);
   return (
     <>
@@ -42,7 +48,7 @@ export function LiveFeed({
               </p>
             </div>
           )
-        ) : (
+        ) : backend ? (
           <div
             className="feed-skeleton"
             role="status"
@@ -57,6 +63,14 @@ export function LiveFeed({
                 </div>
               </div>
             ))}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <h3>Catalog backend is not configured.</h3>
+            <p>
+              Set VITE_CONVEX_URL to a Convex deployment URL, then restart the
+              dev server.
+            </p>
           </div>
         )}
       </div>

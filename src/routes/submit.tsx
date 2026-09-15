@@ -198,7 +198,10 @@ function EmailIntake() {
 }
 
 function ConfiguredEmailIntake() {
-  const address = useQuery(api.email.intakeAddress);
+  const address = useQuery(
+    api.email.intakeAddress,
+    backend ? undefined : "skip",
+  );
   if (!address) return null;
   return (
     <div className="email-intake">

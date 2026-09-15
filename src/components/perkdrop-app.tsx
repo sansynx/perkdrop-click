@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "@tanstack/react-router";
+import { CatchBoundary, Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   ArrowUpRight,
@@ -193,21 +193,34 @@ export function PerkdropApp({
             </label>
           </div>
           {backend ? (
-            <LiveFeed
-              initialData={
-                !query &&
-                category === "Everything" &&
-                audience === "Everyone" &&
-                tab === "All perks"
-                  ? initialData
-                  : undefined
-              }
-              audience={audience}
-              key={JSON.stringify([settledQuery, category, audience, tab])}
-              search={settledQuery}
-              category={category}
-              endingSoon={tab === "Ending soon"}
-            />
+            <CatchBoundary
+              getResetKey={() => "catalog-feed"}
+              errorComponent={() => (
+                <div className="empty-state" role="status">
+                  <h3>Catalog backend is not reachable.</h3>
+                  <p>
+                    Start Convex locally, or set VITE_CONVEX_URL to a running
+                    deployment, then reload.
+                  </p>
+                </div>
+              )}
+            >
+              <LiveFeed
+                initialData={
+                  !query &&
+                  category === "Everything" &&
+                  audience === "Everyone" &&
+                  tab === "All perks"
+                    ? initialData
+                    : undefined
+                }
+                audience={audience}
+                key={JSON.stringify([settledQuery, category, audience, tab])}
+                search={settledQuery}
+                category={category}
+                endingSoon={tab === "Ending soon"}
+              />
+            </CatchBoundary>
           ) : (
             <div className="empty-state" role="status">
               <h3>Resources are temporarily unavailable.</h3>

@@ -32,15 +32,15 @@ export const ENQUEUE_URL_LIMIT = 20;
 export const DISCOVERY_INTENTS = [
   {
     key: "intent:credits",
-    query: "new free API cloud credits developer program",
+    query: "currently open free API cloud credits developer program",
   },
   {
     key: "intent:students",
     query: "student developer pack free software credits",
   },
   {
-    key: "intent:hackathons",
-    query: "hackathon prizes sponsor API cloud credits",
+    key: "intent:programs",
+    query: "startup free cloud credits developer program",
   },
   {
     key: "intent:startups",

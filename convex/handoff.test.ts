@@ -390,6 +390,18 @@ it("unpublishes an active offer and removes it from the live catalog", async () 
   ).toHaveLength(0);
 });
 
+it("returns a live offer to the review queue", async () => {
+  const { t, resource, candidate, session } = await fixture();
+  await t.mutation(api.admin.revertToReview, {
+    session,
+    resourceId: resource._id,
+  });
+  expect(await t.query(api.catalog.get, { slug: resource.slug })).toBeNull();
+  expect(await t.run((ctx) => ctx.db.get(candidate._id))).toMatchObject({
+    status: "pending",
+  });
+});
+
 it("returns a rejected offer to pending review", async () => {
   const { t, candidate, session } = await fixture();
   await t.run((ctx) =>

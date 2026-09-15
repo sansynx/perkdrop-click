@@ -1,4 +1,5 @@
 import { OFFER_AUDIENCES, OFFER_CATEGORIES } from "../../convex/lib/categories";
+import { publicMeta } from "../../convex/lib/intakePolicy";
 
 export type Drop = {
   resourceId?: import("../../convex/_generated/dataModel").Id<"resources">;
@@ -6,6 +7,7 @@ export type Drop = {
   requirements?: string[];
   claimUrl?: string;
   imageUrl?: string;
+  foundOn?: string;
   slug: string;
   provider: string;
   providerMark: string;
@@ -28,3 +30,15 @@ export type Drop = {
 
 export const categories = ["Everything", ...OFFER_CATEGORIES];
 export const audiences = [...OFFER_AUDIENCES];
+
+export function hostOf(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+export function visibleMeta(value: string) {
+  return publicMeta(value);
+}

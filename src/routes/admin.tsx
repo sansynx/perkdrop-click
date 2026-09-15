@@ -141,6 +141,35 @@ function useAdminController() {
       setBusy(false);
     }
   }
+  async function revertLive(resourceId: Id<"resources">) {
+    if (!backend || !session) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.revertToReview, {
+        session,
+        resourceId,
+      });
+      await load();
+    } catch {
+      setError("That offer could not return to review. Refresh and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function unpublishLive(resourceId: Id<"resources">) {
+    if (!backend || !session) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.unpublish, { session, resourceId });
+      await load();
+    } catch {
+      setError("That offer could not be removed. Refresh and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function signOut() {
     if (backend && session)
       await backend.mutation(api.admin.endSession, { session }).catch(() => {});
@@ -163,6 +192,8 @@ function useAdminController() {
     reason,
     reopen,
     result,
+    revertLive,
+    unpublishLive,
     selected,
     selectedIds,
     session,
@@ -189,6 +220,7 @@ function AdminPage() {
     reason,
     reopen,
     result,
+    revertLive,
     selected,
     selectedIds,
     setAudiences,
@@ -201,6 +233,7 @@ function AdminPage() {
     signOut,
     status,
     token,
+    unpublishLive,
   } = useAdminController();
   return (
     <div className="app-shell admin-shell">
@@ -463,6 +496,24 @@ function AdminPage() {
                       </button>
                     </div>
                   )}
+                  {status === "approved" && item.resourceId && (
+                    <div className="candidate-actions">
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => void revertLive(item.resourceId!)}
+                      >
+                        Return to review
+                      </button>
+                      <button
+                        className="button"
+                        disabled={busy}
+                        onClick={() => void unpublishLive(item.resourceId!)}
+                      >
+                        Unpublish
+                      </button>
+                    </div>
+                  )}
                   {status === "rejected" && (
                     <div className="candidate-actions">
                       <button
@@ -591,6 +642,18 @@ function LiveCatalog({ session }: { session: string }) {
       setBusy(false);
     }
   }
+  async function revert(resourceId: Id<"resources">) {
+    if (!backend) return;
+    setBusy(true);
+    setError("");
+    try {
+      await backend.mutation(api.admin.revertToReview, { session, resourceId });
+    } catch {
+      setError("That offer could not return to review. Refresh and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function recategorize(
     resourceId: Id<"resources">,
     category: string,
@@ -616,8 +679,9 @@ function LiveCatalog({ session }: { session: string }) {
     <section className="admin-live">
       <h2>Live catalog</h2>
       <p>
-        These offers are on the homepage. Set the category so the right filter
-        shows them, or take one down if the claim is broken.
+        These offers are on the homepage. Unpublish removes one. Return to
+        review takes a mistaken approval off the site and puts it back in Needs
+        review.
       </p>
       {!offers && <p role="status">Loading published offers…</p>}
       {offers?.page.map((item) => (
@@ -670,13 +734,22 @@ function LiveCatalog({ session }: { session: string }) {
               </label>
             </div>
           </div>
-          <button
-            className="button"
-            disabled={busy}
-            onClick={() => void unpublish(item.resourceId)}
-          >
-            Unpublish
-          </button>
+          <div className="candidate-actions">
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => void revert(item.resourceId)}
+            >
+              Return to review
+            </button>
+            <button
+              className="button"
+              disabled={busy}
+              onClick={() => void unpublish(item.resourceId)}
+            >
+              Unpublish
+            </button>
+          </div>
         </div>
       ))}
       {offers && !offers.page.length && (
