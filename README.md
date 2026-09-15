@@ -139,19 +139,19 @@ the ignored `.env.local`. Use that URL, not someone else's Convex cloud host.
 `pnpm run dev` alone against a stopped local backend used to crash the homepage.
 Catalog loaders now fail closed.
 
-| Setting                    | Notes                                                             |
-| -------------------------- | ----------------------------------------------------------------- |
+| Setting                    | Notes                                                                           |
+| -------------------------- | ------------------------------------------------------------------------------- |
 | `VITE_CONVEX_URL`          | Public Convex client URL from `convex dev`. Do not copy another project's host. |
-| `FIRECRAWL_API_KEY`        | Convex secret.                                                    |
-| `ADMIN_REVIEW_TOKEN`       | Convex secret, at least 32 characters. Exchanged for a session.   |
-| `DISCOVERY_ENABLED`        | Set `true` on Convex to run scheduled search.                     |
-| `AGENTMAIL_API_KEY`        | Convex secret for receipts.                                       |
-| `AGENTMAIL_WEBHOOK_SECRET` | Convex secret. Svix secret from AgentMail.                        |
-| `AGENTMAIL_INTAKE_ADDRESS` | Public inbox shown on `/submit`.                                  |
-| `AGENTMAIL_INBOX_ID`       | Optional. AgentMail `inbox_id` when it is not the intake address. |
-| `PUBLIC_SITE_URL`          | HTTPS origin used in receipt links. Match the live app URL above. |
-| `CONVEX_SITE_URL`          | Set by Convex. Receipts load `/brand/mark.png` from it.           |
-| `AGENTMAIL_BASE_URL`       | Optional. Defaults to `https://api.agentmail.to/v0`.              |
+| `FIRECRAWL_API_KEY`        | Convex secret.                                                                  |
+| `ADMIN_REVIEW_TOKEN`       | Convex secret, at least 32 characters. Exchanged for a session.                 |
+| `DISCOVERY_ENABLED`        | Set `true` on Convex to run scheduled search.                                   |
+| `AGENTMAIL_API_KEY`        | Convex secret for receipts.                                                     |
+| `AGENTMAIL_WEBHOOK_SECRET` | Convex secret. Svix secret from AgentMail.                                      |
+| `AGENTMAIL_INTAKE_ADDRESS` | Public inbox shown on `/submit`.                                                |
+| `AGENTMAIL_INBOX_ID`       | Optional. AgentMail `inbox_id` when it is not the intake address.               |
+| `PUBLIC_SITE_URL`          | HTTPS origin used in receipt links. Match the live app URL above.               |
+| `CONVEX_SITE_URL`          | Set by Convex. Receipts load `/brand/mark.png` from it.                         |
+| `AGENTMAIL_BASE_URL`       | Optional. Defaults to `https://api.agentmail.to/v0`.                            |
 
 Never prefix secrets with `VITE_`. Only `.env.example` belongs in Git.
 Machine-local scratch belongs in `.local/` and is ignored.
